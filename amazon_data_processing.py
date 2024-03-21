@@ -199,7 +199,6 @@ class DtoDataProcessAmazon:
 
 
 # In[ ]:
-# test_pipeline 1
 
 
 
