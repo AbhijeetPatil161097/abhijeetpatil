@@ -12,7 +12,7 @@ def merge_dataframes(df1, df2):
     df2.rename(columns={'VENDOR_IDENTIFIER': 'VENDOR_ASSET_ID', 'NEW_TITLE': 'TITLE', 'ROYALTY_PRICE': 'RETAIL_PRICE',
                         'CUSTOMER_PRICE': 'UNIT_COST', 'UNITS': 'QUANTITY', 'ASSET_CONTENT_FLAVOR': 'MEDIA_FORMAT',
                         'COUNTRY_CODE': 'TERRITORY', 'BEGIN_DATE': 'TRANSACTION_DATE'}, inplace=True)
-    
+    # v1
     # Concatenate dataframes
     df_combined = pd.concat([df1, df2], ignore_index=True)
     df_combined['TRANSACTION_DATE'] = pd.to_datetime(df_combined['TRANSACTION_DATE'])
