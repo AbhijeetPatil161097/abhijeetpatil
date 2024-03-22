@@ -7,7 +7,7 @@
 import pandas as pd
 import re
 
-class DtoDataProcess:
+class DtoDataProcessGoogle:
     # Define column names as class variables
     FILE_NAME = 'FILE_NAME'
     HEADER = 'HEADER'
