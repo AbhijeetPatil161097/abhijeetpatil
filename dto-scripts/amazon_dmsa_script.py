@@ -6,6 +6,7 @@
 
 class DtoDataProcessAmazon:
     # Define column names as class variables
+    # test1
     MONTH = 'MONTH'
     YEAR = 'YEAR'
     DISC_PLUS = 'Disc Plus'
