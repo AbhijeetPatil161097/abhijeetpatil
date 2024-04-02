@@ -172,7 +172,7 @@ class DtoDataProcessGoogle:
             
     def formatting_transaction_date(self):
         try:
-            self.date_columns[self.TRANSACTION_DATE] = pd.to_datetime(self.df[self.date_columns[self.TRANSACTION_DATE]]).dt.date
+            self.date_columns[self.TRANSACTION_DATE] = pd.to_datetime(self.df[self.date_columns[self.TRANSACTION_DATE]], format='%m-%Y')
         except Exception as e:
             print(f"Error formatting transaction date: {e}")
 
