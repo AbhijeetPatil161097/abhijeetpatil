@@ -197,7 +197,3 @@ class DtoDataProcessAmazon:
         except Exception as e:
             raise ValueError(f"Error processing data source: {e}")
 
-# test
-# test2
-# test3
-# test4
