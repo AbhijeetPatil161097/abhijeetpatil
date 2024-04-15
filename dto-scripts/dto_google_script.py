@@ -201,6 +201,3 @@ class DtoDataProcessGoogle:
 
 # In[ ]:
 
-#rrr
-
-
