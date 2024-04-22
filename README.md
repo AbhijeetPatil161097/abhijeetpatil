@@ -1,154 +1,134 @@
-# Project Name: DTO Research 
+# 🌟 Project Name: DTO Research 🌟
 
-## Overview: 
-### To automate the process of data mining, data processing and data loading to minimize the manual intervention and save time.
+## 🚀 Overview
+To automate the process of data mining, data processing, and data loading to minimize manual intervention and save time.
 
-### Data Processing Scripts are stored in github repository:
-- Link: https://github.com/AbhijeetPatil161097/abhijeetpatil/tree/2abca9634315402e4a7bbdf0287bb3077194920a/dto-scripts
+### 📁 Data Processing Scripts Repository
+- **Repository Link:** [DTO Scripts](https://github.com/AbhijeetPatil161097/abhijeetpatil/tree/2abca9634315402e4a7bbdf0287bb3077194920a/dto-scripts)
+  - Scripts for data processing tasks are stored here.
 
-### Code Pipeline:
-- Code pipeline autometically updates changes made in git repo to s3 bucket.
-- Code pipeline Name: dto-code-pipeline
-- Path: s3://cdr-research/Projects/DTO/dto-scripts/
-  
-### Currency Data:
-- Currency data is autometically updated every week from snowflake table to s3 bucket using a snowflake task 'export_to_s3_monthly'
-- Snowflake Table: CONTENT_DB.CDR.DTO_REFERENCECURRENCY
-- S3 file path: s3://cdr-research/Projects/DTO/Currency/data_0_0_0.csv.gz
+### 🛠️ Code Pipeline
+- **Pipeline Name:** dto-code-pipeline
+- **Path:** s3://cdr-research/Projects/DTO/dto-scripts/
+- The code pipeline automatically updates changes from the GitHub repository to the S3 bucket.
 
-### Lambda Functions:
-- Lambda function triggers the glue job to run autometically when changes made in script and monthly on a specific date.
-- Lambda Function Name: dto_processing_trigger
+### 💱 Currency Data
+- Currency data is automatically updated weekly from the Snowflake table to the S3 bucket using the Snowflake task 'export_to_s3_monthly'.
+  - **Snowflake Table:** CONTENT_DB.CDR.DTO_REFERENCECURRENCY
+  - **S3 File Path:** s3://cdr-research/Projects/DTO/Currency/data_0_0_0.csv.gz
 
-### Data Catalog:
-- Data catalog is used to keep track of metadata of raw data and transformed data in form of tables.
-- AWS Glue crawler is used to get schema of data and stored in aws database.
-#### 1. For Raw Data
-   - Crawler Name: dto_raw_data
-   - Database Name: dto_research
-   - Table Name Prefix: dto_raw_ 
-#### 2. For Transformed Data:
-   - Crawler Name: dto_transformed_data
-   - Database Name: dto_research
-   - Table Name Prefix: dto_transformed_ 
+### 🔔 Lambda Functions
+- A lambda function named 'dto_processing_trigger' triggers the Glue job automatically when changes are made in scripts and monthly on a specific date.
+
+### 📚 Data Catalog
+- The data catalog keeps track of metadata of raw data and transformed data in the form of tables.
+  - **For Raw Data:**
+    - **Crawler Name:** dto_raw_data
+    - **Database Name:** dto_research
+    - **Table Name Prefix:** dto_raw_
+  - **For Transformed Data:**
+    - **Crawler Name:** dto_transformed_data
+    - **Database Name:** dto_research
+    - **Table Name Prefix:** dto_transformed_
+
+## 📦 Versions of Libraries
+### 📚 Library Versions
+- Python: 3.11.5
+- pandas: 2.0.3
+- numpy: 1.24.3
+- os: 3.11.5
+- re: 2.2.1
+- s3fs: 2023.4.0
+- boto3: 1.34.41
+- logging: 0.5.1.2
+- gzip: 3.11.0
+- logging: 0.5.1.2
+
+## 🏗️ Architecture
+## Architecture
+
+### Step 1: AWS Glue Job - dto_data_processing
+
+This Glue job orchestrates the entire ETL process:
+
+1. **Initialize Logging:**
+   - This function starts the log file.
+
+2. **Read Processed Files:**
+   - This function reads file names from processed_files.txt.
+
+3. **Read Script from S3:**
+   - This function reads data processing scripts for Amazon, iTunes, Google, and the Data Integration script.
+   - **Path:** s3://cdr-research/Projects/DTO/dto-scripts/
+
+4. **Execute Data Processing Scripts:**
+   - Scripts are executed.
+
+5. **Read Data from S3 - Amazon:**
+   - This function reads raw Amazon data stored in the S3 bucket.
+   - It filters out any old files present in processed_files.txt and reads only new files.
+   - **Path:** s3://azv-s3str-pmsa1/dto_individual_partners/amazon/monthly/
+
+6. **Read Data from S3 - iTunes:**
+   - This function reads raw iTunes data stored in the S3 bucket.
+   - It filters out any old files present in processed_files.txt and reads only new files.
+   - **Path:** s3://azv-s3str-pmsa1/dto_individual_partners/itunes/monthly/
+
+7. **Read Data from S3 - Google:**
+   - This function reads raw Google data stored in the S3 bucket.
+   - It filters out any old files present in processed_files.txt and reads only new files.
+   - **Path:** s3://azv-s3str-pmsa1/dto_individual_partners/google/monthly/
+
+8. **Raw Data Transformation:**
+   - This function performs data transformation using data processing scripts and stores data in different variables.
+   - DtoDataProcessAmazon, DtoDataProcessItunes, DtoDataProcessGoogle are classes present in individual data processing scripts.
+   - **Path:** s3://cdr-research/Projects/DTO/dto-scripts/
+
+9. **Merge All Data:**
+   - The 'merge_dataframes' function is present in the data integration script.
+   - **Path:** s3://cdr-research/Projects/DTO/dto-scripts/dto_integration_script.py
+
+10. **Read Transaction Dates from S3:**
+    - This function reads the transaction_dates.txt file, which contains all unique transaction dates for each vendor that occurred in the previous Glue job run.
+    - **Path:** s3://cdr-research/Projects/DTO/transaction_dates.txt
+
+11. **Filter Out Old Transaction Dates Rows:**
+    - This code filters out/removes transaction dates present in the transaction_dates.txt file to avoid overwriting data during writing output data.
+
+12. **Write Transaction Dates to File:**
+    - This function puts new transaction dates to the transaction_dates.txt file.
+    - **Path:** s3://cdr-research/Projects/DTO/transaction_dates.txt
+
+13. **Get Last Reporting Start Date Rows:**
+    - Currency data is available at
+    - **Path:** s3://cdr-research/Projects/DTO/Currency/data_0_0_0.csv.gz
+    - Data is transformed to fetch only the last date recorded in the column 'reporting_start_date' for each country.
+
+14. **Map Conversion Rates:**
+    - This function maps conversion rates from currency data to the main merged data frame named: final_df
+
+15. **Map Revenue USD:**
+    - This function maps values of REVENUE and COST in USD currency in final_df.
+
+16. **Write Data to S3:**
+    - This function writes/uploads transformed data to the S3 bucket in the directory VENDOR_NAME > YEAR > MONTH
+    - **Path:** s3://cdr-research/Projects/DTO/Output/
+
+17. **Write Processed Files:**
+    - This function appends names of files processed in the current Glue job run to the S3 bucket.
+    - **Path:** s3://cdr-research/Projects/DTO/processed_files.txt
+
+18. **Upload Log File to S3:**
+    - This function uploads the log file for the current Glue job run to the S3 bucket.
+    - **Path:** s3://cdr-research/Projects/DTO/glue_job_log.txt
+   
 
 
-## Versions of Libraries:
-### Following are the version of libraries used
-- Python	: 3.11.5  
-- pandas	: 2.0.3  
-- numpy	: 1.24.3  
-- os	: 3.11.5  
-- re	: 2.2.1  
-- s3fs	: 2023.4.0  
-- boto3	: 1.34.41  
-- logging	: 0.5.1.2  
-- gzip	: 3.11.0  
-- logging	: 0.5.1.2
 
-## Architecture: 
-### Step 1: AWS Glue Job: 
-### Job Name: dto_data_processing 
-1. This is the main script which orchestrates the entire ETL process. 
-2. It has number of functions which run sequentially to perform required tasks:
-#### Importing Libraries: 
-- Required libraries are imported to perform tasks. 
 
-#### Define Paths: 
-- Paths for required assets like raw data, data processing scripts, log file, processed file, output directory are set in different variables. 
 
-#### Initiate Glue Job: 
-- Glue job is initiated/started on spark architecture. 
+This architecture ensures efficient data processing and automation of the ETL pipeline for DTO research.
 
-#### Orchestration of Glue Job Functions: 
+---
 
-##### 1. initialize_logging: 
-- This function starts log file. 
-
-##### 2. read_processed_files: 
-- This function reads file names from processed_files.txt 
-
-##### 3. read_script_from_s3: 
-- This function reads data processing scripts for Amazon, iTunes, Google and Data Integration script. 
-- Path: s3://cdr-research/Projects/DTO/dto-scripts/ 
-
-##### 4. Execute Data Processing Scripts: 
-- Scripts are executed. 
-
-##### 5. read_data_from_s3_amazon: 
-- This function reads raw amazon data stored in S3 bucket. 
-- This function filters out any old files present in processed_files.txt and reads only new files.  
-- Path: s3://azv-s3str-pmsa1/ dto_individual_partners/amazon/monthly/ 
-
-##### 6. read_data_from_s3_itunes: 
-- This function reads raw iTunes data stored in S3 bucket at: 
-- This function filters out any old files present in processed_files.txt and reads only new files.  
-- Path: s3://azv-s3str-pmsa1/ dto_individual_partners/itunes/monthly/ 
-
-##### 7. read_data_from_s3_google: 
-- This function reads raw data google stored in S3 bucket at: 
-- This function filters out any old files present in processed_files.txt and reads only new files.  
-- Path: s3://azv-s3str-pmsa1/ dto_individual_partners/google/monthly/ 
-
-##### 8. Raw data Transformation: 
-- This performs data transformation using data processing scripts and stores data in different variables. 
-- DtoDataProcessAmazon, DtoDataProcessItunes, DtoDataProcessGoogle are classes present in individual data processing scripts. 
-- Path: s3://cdr-research/Projects/DTO/dto-scripts/ 
-
-##### 9. Merge All data: 
-- ‘merge_dataframes’ function is present in data integration script.  
-- Path: s3://cdr-research/Projects/DTO/dto-scripts/dto_integration_script.py 
-
-##### 10. read_transaction_dates_from_s3 
-- This function reads transaction_dates.txt file which contains all unique transaction dates for each vendor which occurred in previous glue job run. 
-- Path: s3://cdr-research/Projects/DTO/transaction_dates.txt 
-
-##### 11. Filter out old transaction dates rows: 
-- This code filters out / removes transaction dates present in transaction_dates.txt file to avoid overwriting data during writing output data. 
-
-##### 12. write_transaction_dates_to_file 
-- This function puts new transaction dates to transaction_dates.txt file. 
-- Path: s3://cdr-research/Projects/DTO/transaction_dates.txt 
-
-##### 13. get_last_reporting_start_date_rows 
-- Currency data is available at 
-- Path: s3://cdr-research/Projects/DTO/Currency/data_0_0_0.csv.gz 
-- Data is transformed to fetch only last date recorded in column ‘reporting_start_date’ for each country. 
-
-##### 14. map_conversion_rates: 
-- This function maps conversion rates from currency data to main merged data frame named: final_df
-
-##### 15. map_revenue_usd: 
-- This function maps values of REVENUE and COST in USD currency in final_df. 
-
-##### 16. write_data_to_s3: 
-- This Function writes/uploads transformed data to s3 bucket in directory  
-- VENDOR_NAME > YEAR > MONTH 
-- Path: s3://cdr-research/Projects/DTO/Output/ 
-
-##### 17. write_processed_files: 
-- This function appends names of files processed in current glue job run to s3 bucket. 
-- Path: s3://cdr-research/Projects/DTO/processed_files.txt 
-
-##### 18. upload_log_file_to_s3 
-- This function uploads log file for current glue job run to s3 bucket. 
-- Path: s3://cdr-research/Projects/DTO/glue_job_log.txt 
-
-### Automated Glue Job Triggers: 
-#### 1. Script Update: 
-- Scripts are stored at GitHub repository
-- Link: https://github.com/AbhijeetPatil161097/abhijeetpatil/tree/2abca9634315402e4a7bbdf0287bb3077194920a/dto-scripts 
-- These Scripts are automatically fetched to S3 bucket if any changes are made to GitHub repository prod branch scripts. 
-- Path: s3://cdr-research/Projects/DTO/dto-scripts/ 
-- Lambda function is created to check changes at S3 bucket. 
-- If files are updated at s3 path: s3://cdr-research/Projects/DTO/dto-scripts/, lambda function will clear processed_files.txt and trigger glue job which will process all raw files. 
-- Lambda Function Name: dto_processing_trigger  
-
-#### 2. Monthly Trigger: 
-- Name: EventBridge (CloudWatch Events): Monthly-Trigger 
-- Monthly trigger is created to run the glue job on the 5th day of each month. 
-- This will process only new raw files uploaded to s3 bucket.
- 
-
- 
-
+This README provides a comprehensive overview of the DTO Research project, detailing its components, processes, and architecture.
