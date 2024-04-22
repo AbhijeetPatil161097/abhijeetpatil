@@ -16,8 +16,21 @@
 - Snowflake Table: CONTENT_DB.CDR.DTO_REFERENCECURRENCY
 - S3 file path: s3://cdr-research/Projects/DTO/Currency/data_0_0_0.csv.gz
 
-### Lambda
+### Lambda Functions:
+- Lambda function triggers the glue job to run autometically when changes made in script and monthly on a specific date.
+- Lambda Function Name: dto_processing_trigger
 
+### Data Catalog:
+- Data catalog is used to keep track of metadata of raw data and transformed data in form of tables.
+- AWS Glue crawler is used to get schema of data and stored in aws database.
+#### 1. For Raw Data
+   - Crawler Name: dto_raw_data
+   - Database Name: dto_research
+   - Table Name Prefix: dto_raw_ 
+#### 2. For Transformed Data:
+   - Crawler Name: dto_transformed_data
+   - Database Name: dto_research
+   - Table Name Prefix: dto_transformed_ 
 
 
 ## Versions of Libraries:
