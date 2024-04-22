@@ -3,6 +3,23 @@
 ## Overview: 
 ### To automate the process of data mining, data processing and data loading to minimize the manual intervention and save time.
 
+### Data Processing Scripts are stored in github repository:
+- Link: https://github.com/AbhijeetPatil161097/abhijeetpatil/tree/2abca9634315402e4a7bbdf0287bb3077194920a/dto-scripts
+
+### Code Pipeline:
+- Code pipeline autometically updates changes made in git repo to s3 bucket.
+- Code pipeline Name: dto-code-pipeline
+- Path: s3://cdr-research/Projects/DTO/dto-scripts/
+  
+### Currency Data:
+- Currency data is autometically updated every week from snowflake table to s3 bucket using a snowflake task 'export_to_s3_monthly'
+- Snowflake Table: CONTENT_DB.CDR.DTO_REFERENCECURRENCY
+- S3 file path: s3://cdr-research/Projects/DTO/Currency/data_0_0_0.csv.gz
+
+### Lambda
+
+
+
 ## Versions of Libraries:
 ### Following are the version of libraries used
 - Python	: 3.11.5  
