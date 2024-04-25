@@ -127,13 +127,18 @@ This Glue job orchestrates the entire ETL process:
    
 
 
+## 🏫 Account configuration for access
+- **Account Name:** AE-AWS-RESEARCH
+- **Account ID:** 932196625283
+
+
 ## 📧 Contact Information
 - For more details check confluence documnet
   - **Link:** https://aenetworks365-my.sharepoint.com/:w:/g/personal/abhijeet_patil_aenetworks_com/EevWaRepjblHhTP3YRwb2vUBjfHSH8j8U1_s72Npf-1BGA?email=abhijeet.patil%40aenetworks.com&e=HQsTZC
 
 - If you have any questions, feedback, or need assistance, contact us:
 
-  - **Email:** [Abhijeet.Patil@aenetworks.com](mailto:Abhijeet.Patil@aenetworks.com)
+  - **Email:** [abhijeet.Patil@aenetworks.com](mailto:Abhijeet.Patil@aenetworks.com)
 
 
 
