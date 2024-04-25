@@ -64,6 +64,8 @@ class DtoDataProcessItunes:
         self.sales_return_mapping = {'S': 'SALES', 'R': 'RETURN'}
         
         self.df[self.BEGIN_DATE] = pd.to_datetime(self.df[self.BEGIN_DATE]).dt.strftime('%m-%Y')
+        self.df[self.ASSET_CONTENT_FLAVOR].fillna('UNKNOWN', inplace=True)
+        self.df[self.PRIMARY_GENRE].fillna('UNKNOWN', inplace=True)
 
         
         
@@ -128,8 +130,8 @@ class DtoDataProcessItunes:
                 self.ROYALTY_PRICE: 'mean',
                 self.UNITS: 'sum',
                 self.SALES_OR_RETURN: unique_join,
-                self.ASSET_CONTENT_FLAVOR: unique_join,
-                self.PRIMARY_GENRE: unique_join
+                self.PRIMARY_GENRE: unique_join,
+                self.ASSET_CONTENT_FLAVOR: unique_join
             }
 
             self.df = self.df.groupby(self.groupby_columns).agg(agg_columns).reset_index()
@@ -172,7 +174,6 @@ class DtoDataProcessItunes:
             return self.add_vendor_name_column()
         except RuntimeError as e:
             raise e
-
 
 # In[ ]:
 
