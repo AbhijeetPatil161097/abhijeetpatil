@@ -126,7 +126,9 @@ This Glue job orchestrates the entire ETL process:
     - This function uploads the log file for the current Glue job run to the S3 bucket.
     - **Path:** s3://cdr-research/Projects/DTO/glue_job_log.txt
    
-
+## 🏫 Account configuration for access
+- **Account Role:** AE-AWS-RESEARCH
+- **Account ID:** 932196625283
 
 ## 📧 Contact Information
 - For more details check confluence documnet
