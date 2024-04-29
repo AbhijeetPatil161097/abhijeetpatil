@@ -126,6 +126,10 @@ This Glue job orchestrates the entire ETL process:
     - **Path:** s3://cdr-research/Projects/DTO/glue_job_log.txt
    
 
+## ✅ Test Cases for the ETL pipeine.
+1. Process new files during monthly run.
+2. When script changes, all data files will be processed.
+3. If new data file contains old dates, those rows will be filtered out.
 
 ## 🏫 Account configuration for access
 - **Account Name:** AE-AWS-RESEARCH
@@ -139,7 +143,6 @@ This Glue job orchestrates the entire ETL process:
 - If you have any questions, feedback, or need assistance, contact us:
 
   - **Email:** [abhijeet.Patil@aenetworks.com](mailto:Abhijeet.Patil@aenetworks.com)
-
 
 
 ---
