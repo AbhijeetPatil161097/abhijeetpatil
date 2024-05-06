@@ -126,7 +126,7 @@ class DtoDataProcessItunes:
                 return '|'.join(sorted(pd.Series.unique(series)))
 
             agg_columns = {
-                self.CUSTOMER_PRICE: 'sum',
+                self.CUSTOMER_PRICE: 'mean',
                 self.ROYALTY_PRICE: 'mean',
                 self.UNITS: 'sum',
                 self.SALES_OR_RETURN: unique_join,
