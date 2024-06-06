@@ -41,24 +41,24 @@ class DtoDataProcessItunes:
     EXTENDED_PARTNER_SHARE = 'Extended Partner Share'
     SALES_OR_RETURN = 'Sales or Return'
     REGION = 'Region'
+    REVENUE_NATIVE = 'REVENUE_NATIVE'
+    COST_NATIVE = 'COST_NATIVE'
 
     
     
     def __init__(self, platform, df):
         self.platform = platform
         self.df = df
-        
         self.columns_to_drop = [self.PROVIDER, self.UPC, self.ISRC, self.LABEL_STUDIO_NETWORK, 
                                 self.PRODUCT_TYPE_IDENTIFIER, self.CUSTOMER_CURRENCY, self.PREORDER, 
                                 self.ISAN, self.APPLE_IDENTIFIER, self.CMA, self.VENDOR_OFFER_CODE, self.GRID, self.PROMO_CODE,
-                                self.PARENT_IDENTIFIER, self.PARENT_TYPE_ID, self.EXTENDED_PARTNER_SHARE, self.REGION, self.END_DATE]
+                                self.PARENT_IDENTIFIER, self.PARENT_TYPE_ID, self.EXTENDED_PARTNER_SHARE, self.REGION, self.END_DATE,
+                                self.PROVIDER_COUNTRY]
         
         self.title_columns = [self.ARTIST_SHOW, self.TITLE]
         self.metric_columns = [self.CUSTOMER_PRICE, self.ROYALTY_PRICE, self.UNITS]
-        self.df.dropna(subset=[self.VENDOR_IDENTIFIER, self.TITLE, self.PROVIDER_COUNTRY], inplace=True)
-        self.groupby_columns = [self.VENDOR_IDENTIFIER, self.PROVIDER_COUNTRY, 'NEW_TITLE', self.BEGIN_DATE]
-        
-        self.df[self.PROVIDER_COUNTRY].replace(" ", np.nan, inplace=True)
+        self.df.dropna(subset=[self.VENDOR_IDENTIFIER, self.TITLE, self.COUNTRY_CODE], inplace=True)
+        self.groupby_columns = [self.VENDOR_IDENTIFIER, self.COUNTRY_CODE, 'NEW_TITLE', self.BEGIN_DATE]
         self.currency_to_country_mapping = {'USD': 'US', 'CAD': 'CA', 'EUR': 'DE', 'GBP': 'GB', 'AUD': 'AU'}
         
         self.sales_return_mapping = {'S': 'SALES', 'R': 'RETURN'}
@@ -104,13 +104,22 @@ class DtoDataProcessItunes:
     # Map Missing country codes using currency
     def map_country_codes(self):
         try:
-            self.df[self.PROVIDER_COUNTRY] = self.df[self.PROVIDER_COUNTRY].str.strip().fillna(
+            self.df[self.COUNTRY_CODE] = self.df[self.COUNTRY_CODE].str.strip().fillna(
                 self.df[self.ROYALTY_CURRENCY].map(self.currency_to_country_mapping)
             )
             self.df.drop(columns=[self.ROYALTY_CURRENCY], inplace=True)
         except Exception as e:
             raise RuntimeError(f"Error mapping country codes: {e}")
+            
+    # Calculate revenue and cost       
+    def calculate_revenue_cost(self):
+        try:
+            self.df['REVENUE_NATIVE'] = self.df[self.CUSTOMER_PRICE] * self.df[self.UNITS]
+            self.df['COST_NATIVE'] = self.df[self.ROYALTY_PRICE] * self.df[self.UNITS] 
+        except Exception as e:
+            raise RuntimeError(f"Error calculating revenue and cost: {e}")
 
+            
     # Rename S =SALES, R=RETURN 
     def map_sales_return(self):
         try:
@@ -129,6 +138,8 @@ class DtoDataProcessItunes:
                 self.CUSTOMER_PRICE: 'mean',
                 self.ROYALTY_PRICE: 'mean',
                 self.UNITS: 'sum',
+                self.REVENUE_NATIVE: 'sum',
+                self.COST_NATIVE: 'sum',
                 self.SALES_OR_RETURN: unique_join,
                 self.PRIMARY_GENRE: unique_join,
                 self.ASSET_CONTENT_FLAVOR: unique_join
@@ -138,13 +149,6 @@ class DtoDataProcessItunes:
         except Exception as e:
             raise RuntimeError(f"Error aggregating data: {e}")
 
-    # Calculate revenue and cost       
-    def calculate_revenue_cost(self):
-        try:
-            self.df['REVENUE_NATIVE'] = self.df[self.CUSTOMER_PRICE] * self.df[self.UNITS]
-            self.df['COST_NATIVE'] = self.df[self.ROYALTY_PRICE] * self.df[self.UNITS]
-        except Exception as e:
-            raise RuntimeError(f"Error calculating revenue and cost: {e}")
 
     # Format column names       
     def rename_columns(self):
@@ -168,13 +172,12 @@ class DtoDataProcessItunes:
             self.process_new_title_and_drop_columns()
             self.map_country_codes()
             self.map_sales_return()
-            self.aggregate_data()
             self.calculate_revenue_cost()
+            self.aggregate_data()
             self.rename_columns()
             return self.add_vendor_name_column()
         except RuntimeError as e:
             raise e
-
 # In[ ]:
 
 

@@ -4,6 +4,8 @@
 # In[3]:
 
 
+import pandas as pd
+
 class DtoDataProcessGoogle:
     COUNTRY = 'Country'
     TRANSACTION_DATE = 'Transaction Date'
@@ -43,13 +45,13 @@ class DtoDataProcessGoogle:
     NATIVE_RETAIL_CURRENCY = 'Native Retail Currency'
     NATIVE_PARTNER_CURRENCY = 'Native Partner Currency'
     QUANTITY = 'QUANTITY'
+    REVENUE_NATIVE = 'REVENUE_NATIVE'
     
     def __init__(self, platform, df):
         self.platform = platform
         self.df = df.copy()
-        self.df['QUANTITY'] = 1
         
-        self.columns_to_drop = [self.EIDR_TITLE_ID, self.EIDR_EDIT_ID, self.TRANSACTION_IMPORT_SOURCE, self.TAX_EXCLUSIVE_RETAIL_PRICE_USD,
+        self.columns_to_drop = [self.EIDR_TITLE_ID, self.TRANSACTION_IMPORT_SOURCE, self.TAX_EXCLUSIVE_RETAIL_PRICE_USD,
             self.REFUND_CHARGEBACK, self.COUPON_USED, self.CAMPAIGN_ID, self.TOTAL_TAX, self.NATIVE_TAX_EXCLUSIVE_RETAIL_PRICE,
             self.NATIVE_CONTRACTUAL_MINIMUM_PARTNER_EARNINGS, self.NATIVE_TOTAL_TAX,
             self.NATIVE_PARTNER_EARNINGS_USING_TAX_EXCLUSIVE_RETAIL_PRICE, self.PARTNER_EARNINGS_FRACTION, 
@@ -62,29 +64,7 @@ class DtoDataProcessGoogle:
         self.title_columns = [self.SHOW_TITLE, self.SEASON_TITLE, self.NAME_OF_TITLE]
         self.groupby_columns = [self.COUNTRY, 'NEW_TITLE', self.YOUTUBE_VIDEO_ID, self.TRANSACTION_DATE]
         self.metric_columns = [self.RETAIL_PRICE_USD, self.NATIVE_RETAIL_PRICE, self.QUANTITY, self.CONVERSION_RATE]
-        self.df[self.metric_columns] = self.df[self.metric_columns].apply(pd.to_numeric)
-        
-    
-    
-    # Drop null rows
-    def drop_null_rows(self):
-        try:
-            self.df = self.df.dropna(subset = [self.TRANSACTION_DATE, self.YOUTUBE_VIDEO_ID, self.CONVERSION_RATE])
-            return self.df
-        except Exception as e:
-            print(f"Error dropping rows: {e}")
-            
-    
-    # Format transaction Dates
-    def format_transaction_dates(self):
-        try:
-            self.df[self.TRANSACTION_DATE] = pd.to_datetime(self.df[self.TRANSACTION_DATE])
-            self.df[self.TRANSACTION_DATE] = self.df[self.TRANSACTION_DATE].dt.strftime('%m-%Y')
-            return self.df
-        
-        except Exception as e:
-            print(f"Error Formatting Transaction Dates: {e}")
-    
+        self.df[self.metric_columns] = self.df[self.metric_columns].apply(pd.to_numeric) 
     
     # Drop redundantt columns
     def drop_columns(self, columns_to_drop=None):
@@ -94,7 +74,7 @@ class DtoDataProcessGoogle:
             self.df.drop(columns=existing_columns, inplace=True)
             return self.df
         except Exception as e:
-            print(f"Error dropping columns: {e}")
+            raise RuntimeError(f"Error dropping columns: {e}")
     
     
     # Create NEW_TITLE using title columns
@@ -117,7 +97,7 @@ class DtoDataProcessGoogle:
                 return f"{series_title} | {season_title} | {title}"
             
         except KeyError as e:
-            print(f"Error processing title: {e}")     
+            raise RuntimeError(f"Error processing title: {e}")     
             
             
     
@@ -129,9 +109,16 @@ class DtoDataProcessGoogle:
             self.df.drop(columns=[self.SHOW_TITLE, self.SEASON_TITLE, self.NAME_OF_TITLE], inplace=True)
             return self.df
         except KeyError as e:
-            print(f"Error dropping old title columns: {e}")
+            raise RuntimeError(f"Error dropping old title columns: {e}")
 
-    
+    # Calculate revenue
+    def calculate_revenue(self):
+        try:
+            self.df['REVENUE_NATIVE'] = self.df[self.NATIVE_RETAIL_PRICE] * self.df[self.QUANTITY]
+            
+        except Exception as e:
+            raise RuntimeError(f"Error calculation revenue: {e}")
+            
     
     # Aggregate rows
     def aggregate_data(self):
@@ -142,7 +129,7 @@ class DtoDataProcessGoogle:
                 self.RETAIL_PRICE_USD : 'mean',
                 self.NATIVE_RETAIL_PRICE : 'mean',
                 self.QUANTITY : 'sum',
-                self.CONVERSION_RATE:'mean',
+                self.REVENUE_NATIVE: 'sum',
                 self.RESOLUTION : unique_join,
                 self.TRANSACTION_TYPE : unique_join,
                 self.PURCHASE_LOCATION : unique_join,
@@ -151,16 +138,7 @@ class DtoDataProcessGoogle:
 
             self.df = self.df.groupby(self.groupby_columns).agg(agg_columns).reset_index()
         except KeyError as e:
-            print(f"Error aggregating data: {e}")
-            
-    
-    # Calculate revenue
-    def calculate_revenue(self):
-        try:
-            self.df['REVENUE_USD'] = self.df[self.RETAIL_PRICE_USD] * self.df[self.QUANTITY]
-            self.df['REVENUE_NATIVE'] = self.df[self.NATIVE_RETAIL_PRICE] * self.df[self.QUANTITY]
-        except Exception as e:
-            print(f"Error calculation revenue: {e}")
+            raise RuntimeError(f"Error aggregating data: {e}")
             
     
     # Format column names
@@ -169,7 +147,7 @@ class DtoDataProcessGoogle:
             self.df = self.df.rename(columns=lambda x: x.upper().replace(' ', '_'))
             return self.df
         except Exception as e:  
-            print(f"Error adding renaming column names: {e}")
+            raise RuntimeError(f"Error adding renaming column names: {e}")
             return self.df
     
     
@@ -179,7 +157,7 @@ class DtoDataProcessGoogle:
             self.df.insert(0, 'VENDOR_NAME', vendor_name)
             return self.df
         except Exception as e:
-            print(f"Error adding vendor name column: {e}")
+            raise RuntimeError(f"Error adding vendor name column: {e}")
             return self.df
         
         
@@ -187,17 +165,14 @@ class DtoDataProcessGoogle:
     # Add function to call all         
     def process_data_source(self):
         try:
-            self.drop_null_rows()
             self.drop_columns()
-            self.format_transaction_dates()
             self.process_new_title_and_drop_columns()
-            self.aggregate_data()
             self.calculate_revenue()
+            self.aggregate_data()       
             self.rename_columns()
             return self.add_vendor_name_column()
         except Exception as e:
-            print(f"Error processing data source: {e}")
-
-
+            raise RuntimeError(f"Error processing data source: {e}")
+        
 # In[ ]:
 #123
