@@ -196,7 +196,7 @@ def read_script_from_s3(bucket_name, file_key):
         logging.error(f"An error occurred while reading script from S3: {e}")
         raise RuntimeError("Failed to run function read_script_from_s3.") from e
         
-'''
+
 # Read Amazon Data from S3 and convert in dataframe      
 def read_data_from_s3_amazon(files_to_process, bucket_name):
     """
@@ -311,8 +311,8 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                         'partner': 'DTO',
                         'months_in_data': unique_months,
                         'metric': [
-                            'QUANTITY(Quantity)', 
-                            'COST_NATIVE(Cost)'
+                            'QUANTITY (Quantity)', 
+                            'COST_NATIVE (Cost)'
                             ],
                         
                         'raw_file_value': [
@@ -340,7 +340,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
         logging.error(f"An error occurred while reading Amazon data: {e}")
         return pd.DataFrame()    
 
-'''   
+# Itunes data reading function
 def read_data_from_s3_itunes(files_to_process, bucket_name):
     """
     Function:
@@ -479,7 +479,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                 'platform': 'Itunes',
                                 'partner': 'DTO',
                                 'months_in_data': unique_months,
-                                'metric': 'QUANTITY(Units)',
+                                'metric': 'QUANTITY (Units)',
                                 'raw_file_value': df['Units'].sum()
                             })
                         except Exception as e:
@@ -540,7 +540,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                     'platform': 'Itunes',
                                     'partner': 'DTO',
                                     'months_in_data': unique_months,
-                                    'metric': 'QUANTITY(Quantity)',
+                                    'metric': 'QUANTITY (Quantity)',
                                     'raw_file_value': df['Quantity'].sum()
                                 })
                             except Exception as e:
@@ -575,8 +575,6 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
 
         # Combine both dataframes.
         df_itunes = pd.concat([df_1, df_2_renamed], ignore_index=True)
-        logging.info(f"iTunes Dataframe created successfully")
-        logging.info("\n%s", df_itunes.head().to_string())
         return df_itunes
     
     except Exception as e:
@@ -584,7 +582,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
         return pd.DataFrame()
 
     
-'''
+# Google data reading function
 def read_data_from_s3_google(files_to_process, bucket_name):
     """
     Function:
@@ -707,8 +705,8 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                             'partner': 'DTO',
                             'months_in_data': unique_months,
                             'metric': [
-                                'QUANTITY(QUANTITY)',
-                                'REVENUE_NATIVE(Native Retail Price())'
+                                'QUANTITY (QUANTITY)',
+                                'REVENUE_NATIVE (Native Retail Price)'
                                 ],
                             
                             'raw_file_value': [
@@ -734,7 +732,7 @@ def read_data_from_s3_google(files_to_process, bucket_name):
     except Exception as e:
         logging.error(f"An error occurred while reading Google data: {e}")
         return pd.DataFrame()
-'''            
+   
 # Write data to s3  
 def write_data_to_s3(df, bucket_name, file_key):
     """
@@ -782,13 +780,15 @@ def write_data_to_s3(df, bucket_name, file_key):
                             'platform': platform_name
                         })
                     elif vendor_name == 'iTUNES':
-                        metric_metadata.append({
-                            'processed_file_value': [data['QUANTITY'].sum(), 
-                                                    ],
-                            'processed_date': datetime.now().strftime('%Y-%m-%d'),
-                            'months_in_data': transaction_date,
-                            'platform': platform_name,
-                        })
+                        try:
+                            metric_metadata.append({
+                                'processed_file_value': data['QUANTITY'].sum(),
+                                'processed_date': datetime.now().strftime('%Y-%m-%d'),
+                                'months_in_data': transaction_date,
+                                'platform': platform_name,
+                            })
+                        except:
+                            logging.error(f"An error occurred while writing itunes metric data to S3: {e}")
                     elif vendor_name == 'GOOGLE':
                         metric_metadata.append({
                             'processed_file_value': [data['QUANTITY'].sum(),
@@ -798,8 +798,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                             'months_in_data': transaction_date,
                             'platform': platform_name
                         })
-                    else:
-                        logging.error(f"An error occurred while writing metric metadata")
+
                 except Exception as e:
                     logging.error(f"An error occurred while writing metric data to S3: {e}")
                     raise RuntimeError("Failed to write data to S3.") from e
@@ -824,8 +823,6 @@ def concat_metadata(raw_metadata, processed_metadata):
     Returns:
         * DataFrame: Merged DataFrame containing combined information.
     """
-    logging.info("\n%s", raw_metadata.head().to_string())
-    logging.info("\n%s", processed_metadata.head().to_string())
     # Merge processed files DataFrame with metadata DataFrame based on transaction_date and platform
     new_processed_metadata = raw_metadata.merge(processed_metadata, on=['months_in_data', 'platform'], how='left')
     
@@ -1026,7 +1023,6 @@ try:
         df_itunes = read_data_from_s3_itunes(files_to_process, input_bucket_name)
         itunes_monthly_data = DtoDataProcessItunes('Itunes', df_itunes)
         df_transformed_itunes = itunes_monthly_data.process_data_source()
-        logging.info("\n%s", df_transformed_itunes.head().to_string())
         logging.info(f"Itunes Data Processing success")
     except Exception as e:
         logging.error(f"An error occurred during iTunes data processing: {e}")
@@ -1076,6 +1072,7 @@ try:
         'VENDOR_NAME', 'VENDOR_ASSET_ID', 'TERRITORY', 'TRANSACTION_DATE', 'TITLE', 'PRIMARY_GENRE', 
         'TRANSACTION_FORMAT', 'MEDIA_FORMAT', 'RETAIL_PRICE_NATIVE', 'UNIT_COST_NATIVE', 'QUANTITY', 
         'REVENUE_NATIVE', 'COST_NATIVE', 'REVENUE_USD', 'COST_USD', 'CONVERSION_RATE'])
+
     # Write Transformed Data to S3 with partitions
     try:
         write_data_to_s3(final_df, output_bucket_name, output_folder_key)
@@ -1107,11 +1104,12 @@ try:
     # Raw metrics data
     raw_metrics_data = raw_metadata(metric_metadata_amazon, metric_metadata_itunes, metric_metadata_google)
     
-    # create df of processed_metric data
+    # create df of processed_metric
     processed_metrics_data = pd.DataFrame(metric_metadata)
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
+    
     matrics_metadata = matrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
     matrics_metadata_filtered = matrics_metadata.dropna(how='any')
     
