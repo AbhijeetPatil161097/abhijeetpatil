@@ -158,7 +158,7 @@ class DtoDataProcessItunes:
             raise RuntimeError(f"Error renaming columns: {e}")
 
     # Add ITUNES as vendor name
-    def add_vendor_name_column(self, vendor_name='ITUNES'):
+    def add_vendor_name_column(self, vendor_name='iTUNES'):
         try:
             self.df.insert(0, 'VENDOR_NAME', vendor_name)
             return self.df
