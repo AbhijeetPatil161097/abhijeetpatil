@@ -457,7 +457,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                         # Raise error if difference between Start Date and End Date is more  than 45 Days.
                         date_diff = (df['End Date'] - df['Begin Date']).dt.days
                         if (date_diff > 45).any():
-                            raise RuntimeError("Begin Date and End Date difference is more than 1 month.")
+                            logging.error("Begin Date and End Date difference is more than 1 month.")
                             
                         df['Begin Date'] = df['Begin Date'] + (df['End Date'] - df['Begin Date']) / 2
                         df['Begin Date'] = df['Begin Date'].dt.strftime('%Y-%m')
@@ -526,7 +526,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                             # Raise error if difference between Start Date and End Date is more  than 45 Days.
                             date_diff = (df['End Date'] - df['Start Date']).dt.days
                             if (date_diff > 45).any():
-                                raise RuntimeError("Start Date and End Date difference is more than 1 month.")
+                                logging.error("Start Date and End Date difference is more than 1 month.")
                                 
                             df['Start Date'] = df['Start Date'] + (df['End Date'] - df['Start Date']) / 2
                             df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
