@@ -334,8 +334,10 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
         
         # Concat dataframe from df_list_amazon.        
         df_amazon = pd.concat(df_list_amazon, ignore_index=True)
-        logging.info(f"Amazon Dataframe created successfully")
+        df_amazon.drop_duplicates()
+        
         return df_amazon  
+        logging.info(f"Amazon Dataframe created successfully")
     except Exception as e:
         logging.error(f"An error occurred while reading Amazon data: {e}")
         return pd.DataFrame()    
@@ -418,7 +420,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
         }
         
         # Filter the files_to_process for iTunes platform
-        itunes_files_df = files_to_process[files_to_process['platform'] == 'iTunes']
+        itunes_files_df = files_to_process[files_to_process['platform'] == 'Itunes']
         
         if itunes_files_df.empty:
             logging.warning("No new iTunes files to process.")
@@ -451,6 +453,12 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                         
                         df['Begin Date'] = pd.to_datetime(df['Begin Date'], format = '%m/%d/%Y')
                         df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
+                        
+                        # Raise error if difference between Start Date and End Date is more  than 45 Days.
+                        date_diff = (df['End Date'] - df['Begin Date']).dt.days
+                        if (date_diff > 45).any():
+                            raise RuntimeError("Begin Date and End Date difference is more than 1 month.")
+                            
                         df['Begin Date'] = df['Begin Date'] + (df['End Date'] - df['Begin Date']) / 2
                         df['Begin Date'] = df['Begin Date'].dt.strftime('%Y-%m')
                         
@@ -514,6 +522,12 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                             
                             df['Start Date'] = pd.to_datetime(df['Start Date'], format = '%m/%d/%Y')
                             df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
+                            
+                            # Raise error if difference between Start Date and End Date is more  than 45 Days.
+                            date_diff = (df['End Date'] - df['Start Date']).dt.days
+                            if (date_diff > 45).any():
+                                raise RuntimeError("Start Date and End Date difference is more than 1 month.")
+                                
                             df['Start Date'] = df['Start Date'] + (df['End Date'] - df['Start Date']) / 2
                             df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
                             
@@ -564,10 +578,6 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
             df_1 = pd.DataFrame()
         if not len(df_list_others) == 0:
             df_2 = pd.concat(df_list_others, ignore_index=True)
-            column_name = ['Asset/Content Flavor', 'Primary Genre', 'Provider Country']
-            for i in column_name:
-                if i not in df_2.columns:
-                    df_2[i] = None
             df_2_renamed = df_2.rename(columns=rename_mapping)
         else:
             logging.info(f"df_2_renamed is empty")
@@ -575,7 +585,16 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
 
         # Combine both dataframes.
         df_itunes = pd.concat([df_1, df_2_renamed], ignore_index=True)
+        
+        # Adding empty columns to prevent errors while running data processing scripts.
+        column_name = ['Asset/Content Flavor', 'Primary Genre', 'Provider Country', 'Sales or Return']
+        for i in column_name:
+            if i not in df_itunes.columns:
+                df_itunes[i] = None
+        
+        df_itunes.drop_duplicates()
         return df_itunes
+        logging.info(f"Itunes dataframe created successfully")
     
     except Exception as e:
         logging.error(f"An error occurred while reading iTunes data: {e}")
@@ -726,8 +745,10 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                     logging.error(f"An error occurred while reading Google file: {file_key}, Error: {e}")
                     
         df_google = pd.concat(df_list_google, ignore_index=True)
-        logging.info(f"Google Dataframe created successfully")
+        df_google.drop_duplicates()
+        
         return df_google
+        logging.info(f"Google Dataframe created successfully")
     
     except Exception as e:
         logging.error(f"An error occurred while reading Google data: {e}")
