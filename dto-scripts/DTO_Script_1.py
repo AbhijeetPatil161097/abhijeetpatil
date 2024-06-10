@@ -1,3 +1,33 @@
+'''
+***********************************************************************************************************************
+Description:
+    * This script is designed to run in AWS Glue.
+    * The main function of this script is to find out which raw files to process in DTO_Script_2 and store metadata of
+      raw files.
+    * Process:
+        1. Raw files metadata of current glue job run is stored and its dataframe is created.
+        2. Metadata of processed files i.e output of glue job DTO_Script_2 is read.
+        3. By comparing processed metadata and raw metadata new_files_to_process.csv is updated with metadata of new files.
+        logic for new files:
+            * All new files uploaded in S3 bucket.
+            * All old files which are overwritten / updated in S3 bucket and all files associated with same platform
+              and month.
+            * If multiple months are present in raw data, then all files associated with same month and partner.
+
+***********************************************************************************************************************
+Affected Files:
+    1. raw_metadata.csv : s3://cdr-research/Projects/DTO/Metadata/raw_metadata.csv
+    2. new_files_to_process.csv : s3://cdr-research/Projects/DTO/Metadata/new_files_to_process.csv
+
+***********************************************************************************************************************
+Script Call by:
+    1. Scheduled Run : Script is scheduled to run daily at 12:00 AM.
+    2. Change in data processing scripts : If changes made in GitHub - prod branch, code pipeline will autometically
+       update new script in AWS S3. This change will trigger lambda function DTO_Script_1_run and execute script.
+       
+***********************************************************************************************************************
+'''
+
 # Importing Libraries
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
@@ -226,6 +256,9 @@ def get_new_files(old_metadata_df, current_metadata_df):
         return exploded_df
     else:
         try:
+            old_metadata_df['raw_file_creation_date'] = pd.to_datetime(old_metadata_df['raw_file_creation_date']).dt.strftime('%Y-%m-%d')
+            current_metadata_df['raw_file_creation_date'] = pd.to_datetime(current_metadata_df['raw_file_creation_date']).dt.strftime('%Y-%m-%d')
+
             exploded_df = explode_months_in_data_column(current_metadata_df)
             merged_df = merge_dataframes(exploded_df, old_metadata_df)
             matching_rows_df = filter_matching_rows(exploded_df, merged_df)
@@ -443,7 +476,7 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                             'raw_file_name': file_name,
                             'raw_file_creation_date': file_creation_date,
                             'raw_file_name_month': file_date.strftime('%Y-%m'),
-                            'platform': 'iTunes',
+                            'platform': 'Itunes',
                             'partner': 'DTO',
                             'raw_file_row_count': file_row_count,
                             'months_in_data': unique_months,
@@ -496,7 +529,7 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                                 'raw_file_name': file_name,
                                 'raw_file_creation_date': file_creation_date,
                                 'raw_file_name_month': file_date_formatted,
-                                'platform': 'iTunes',
+                                'platform': 'Itunes',
                                 'partner': 'DTO',
                                 'raw_file_row_count': file_row_count,
                                 'months_in_data': unique_months,
