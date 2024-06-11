@@ -9,7 +9,7 @@ Description:
         2. Using file names in new_files_to_process.csv, amazon, itunes and google files are read and their 
            respective dataframes are created.
         3. Data processing scripts are loaded from S3 bucket and executed.
-        4. Raw data is ttransformed individually and merged together keeping a common schema.
+        4. Raw data is transformed individually and merged together keeping a common schema.
         5. Currency conversion rates are loaded from S3 and mapped in merged dataframe.
         6. Using currency conversion rates, REVENUE and COST values in USD are mapped in dataframe.
         7. After successful mapping, Data is written back in S3 bucket in directory VENDOR_NAME/YEAR/MONTH
@@ -235,6 +235,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
             logging.error(f"An error occurred while reading Amazon file from S3: {e}")
             return None
     
+    
     # Extract Metadata of file
     def extract_file_metadata(file_key):
         """
@@ -250,9 +251,28 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
             logging.error(f"An error occurred while extracting file metadata: {e}")
             return None
 
+    
+    def remove_associated_files(df, new_files_amazon, new_raw_metadata_amazon):
+        try:
+            files_with_issue = new_files_amazon.merge(new_raw_metadata_amazon, 
+                                                      how='left',
+                                                      on=['raw_file_path', 'months_in_data'],
+                                                      indicator=True)
+            files_with_issue = files_with_issue[files_with_issue['_merge'] == 'left_only']
+            files_with_issue.drop('_merge', axis=1, inplace=True)
+
+            months_in_data = files_with_issue['months_in_data'].tolist()
+            logging.error(f"Files not processed for Amazon date: {files_with_issue['months_in_data'].unique().tolist()}")
+            df_amazon = df[~df['TRANSACTION_DATE'].isin(months_in_data)]
+            return df_amazon
+        except Exception as e:
+            logging.error(f"Failed to remove faulty files from Amazon data, Error {e}")
+
         
     try:
+        logging.info(f"Processing files for Amazon")
         s3 = s3fs.S3FileSystem()
+        
         # Filter to get all Amazon Files
         amazon_files_df = files_to_process[files_to_process['platform'] == 'Amazon']
         
@@ -268,6 +288,9 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
             try:
                 s3_url = row['raw_file_path']
                 file_key = s3_url.split(f's3://{bucket_name}/')[1]
+                
+                logging.info(f"Processing started for file: {file_key}")
+                
                 file_name = os.path.basename(file_key)
                 file_extension = os.path.splitext(file_key)[1].lower()
                 df = read_file_from_s3(file_key, file_extension)
@@ -325,22 +348,28 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                     logging.error(
                         f"Failed to append Amazon metadata in list metric_metadata_amazon:{file_key}, Error {e}"
                     )
-                    
+                
                 # Append df in df_list_amazon
                 df_list_amazon.append(df)
-                
+                logging.info(f"Processing Completed for file: {file_key}")
             except Exception as e:
-                logging.error(f"An error occurred while processing Amazon file: {file_key}, Error: {e}")
+                    logging.error(f"Processing failed for file: {file_key}, Error: {e}")    
         
         # Concat dataframe from df_list_amazon.        
         df_amazon = pd.concat(df_list_amazon, ignore_index=True)
-        df_amazon.drop_duplicates()
         
-        return df_amazon  
+        raw_amazon_metadata = pd.DataFrame(new_raw_metadata_amazon)
+        
+        df_amazon_filtered = remove_associated_files(df_amazon, amazon_files_df, raw_amazon_metadata)
+        df_amazon_filtered.drop_duplicates()
+
+        return df_amazon_filtered
         logging.info(f"Amazon Dataframe created successfully")
     except Exception as e:
         logging.error(f"An error occurred while reading Amazon data: {e}")
         return pd.DataFrame()    
+
+
 
 # Itunes data reading function
 def read_data_from_s3_itunes(files_to_process, bucket_name):
@@ -388,7 +417,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
             logging.error(f"An error occurred while reading iTunes file from S3: {e}")
             return None
         
-        # Ectract metadata of file
+    # Ectract metadata of file
     def extract_file_metadata(file_key):
         """
         Extracts metadata of a file from S3.
@@ -402,9 +431,27 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
         except Exception as e:
             logging.error(f"An error occurred while extracting file metadata: {e}")
             return None
-        
-        
+    
+    # Remove all files associated with give platform and month
+    def remove_associated_files(df, new_files_itunes, new_raw_metadata_itunes):
+        try:
+            files_with_issue = new_files_itunes.merge(new_raw_metadata_itunes, 
+                                                      how='left', 
+                                                      on=['raw_file_path', 'months_in_data'],
+                                                      indicator=True)
+            files_with_issue = files_with_issue[files_with_issue['_merge'] == 'left_only']
+            files_with_issue.drop('_merge', axis=1, inplace=True)
+
+            months_in_data = files_with_issue['months_in_data'].tolist()
+            logging.error(f"Files not processed for itunes date: {files_with_issue['months_in_data'].unique().tolist()}")
+            df_itunes = df[~df['Begin Date'].isin(months_in_data)]
+            return df_itunes
+        except Exception as e:
+            logging.error(f"Failed to remove faulty files from itunes data, Error {e}")
+    
     try:
+        logging.info(f"Processing files for Itunes")
+        
         # As there are multiple schemas in iTunes data. We are renaming column names to match schemas.
         rename_mapping = {
             'Start Date': 'Begin Date',
@@ -422,6 +469,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
         # Filter the files_to_process for iTunes platform
         itunes_files_df = files_to_process[files_to_process['platform'] == 'Itunes']
         
+        # Return empty dataframe if itunes_files_df is empty
         if itunes_files_df.empty:
             logging.warning("No new iTunes files to process.")
             return pd.DataFrame()
@@ -434,6 +482,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
             try:
                 s3_url = row['raw_file_path']
                 file_key = s3_url.split(f's3://{input_bucket_name}/')[1]
+                logging.info(f"Processing started for file: {file_key}")
                 file_name = os.path.basename(file_key)
                 file_extension = os.path.splitext(file_key)[1]
                 file_creation_date = extract_file_metadata(file_key)
@@ -457,8 +506,8 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                         # Raise error if difference between Start Date and End Date is more  than 45 Days.
                         date_diff = (df['End Date'] - df['Begin Date']).dt.days
                         if (date_diff > 45).any():
-                            logging.error("Begin Date and End Date difference is more than 1 month.")
-                            
+                            raise RuntimeError("Begin Date and End Date difference is more than 1 month.")
+
                         df['Begin Date'] = df['Begin Date'] + (df['End Date'] - df['Begin Date']) / 2
                         df['Begin Date'] = df['Begin Date'].dt.strftime('%Y-%m')
                         
@@ -473,7 +522,6 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                 'partner': 'DTO',
                                 'months_in_data': unique_months,
                                 'raw_file_row_count': file_row_count
-
                             })
                         except Exception as e:
                             logging.error(
@@ -496,7 +544,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                             )
                         # Append dataframes to df_list_gz
                         df_list_gz.append(df)
-                        
+                        logging.info(f"Processing Completed for file: {file_key}")
                     else:
                         try:
                             file_date_match = re.search(r'_(\d{8})', file_name)
@@ -526,7 +574,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                             # Raise error if difference between Start Date and End Date is more  than 45 Days.
                             date_diff = (df['End Date'] - df['Start Date']).dt.days
                             if (date_diff > 45).any():
-                                logging.error("Start Date and End Date difference is more than 1 month.")
+                                raise RuntimeError("Start Date and End Date difference is more than 1 month.")
                                 
                             df['Start Date'] = df['Start Date'] + (df['End Date'] - df['Start Date']) / 2
                             df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
@@ -547,6 +595,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                 logging.error(
                                     f"Failed to append iTunes metadata in list new_raw_metadata_itunes:{file_key}, Error {e}"
                                 )
+
                             try:
                                 metric_metadata_itunes.append({
                                     'raw_file_path': f"s3://{bucket_name}/{file_key}", 
@@ -561,15 +610,21 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                 logging.error(
                                     f"Failed to append iTunes metadata in list metric_metadata_itunes:{file_key}, Error {e}"
                                 )
-                                
+
+                                                    
                             df_list_others.append(df)
+                            logging.info(f"Processing Completed for file: {file_key}")
                         except Exception as e:
-                            logging.error(f"Failed to read other itunes file formats:{file_key}, Error {e}") 
+                            logging.error(f"Failed to read other itunes file formats:{file_key}, Error {e}")
+
                                       
                 except Exception as e:
-                    logging.error(f"file format not compatible: {file_key}, Error: {e}")     
+                    logging.error(f"Failed to Process file: {file_key}, Error: {e}")
+
+                    
             except Exception as e:
-                logging.error(f"An error occurred while processing iTunes file: {file_key}, Error: {e}")            
+                logging.error(f"An error occurred while processing iTunes file: {file_key}, Error: {e}")
+
             
         if not len(df_list_gz) == 0:
             df_1 = pd.concat(df_list_gz, ignore_index=True)
@@ -592,15 +647,21 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
             if i not in df_itunes.columns:
                 df_itunes[i] = None
         
-        df_itunes.drop_duplicates()
-        return df_itunes
+        raw_itunes_metadata = pd.DataFrame(new_raw_metadata_itunes)
+    
+        # remove all data with incomplete files
+        df_itunes_filtered = remove_associated_files(df_itunes, itunes_files_df, raw_itunes_metadata)
+        logging.info(f"months_in_data: {df_itunes_filtered['Begin Date'].unique().tolist()}")
+        
+        df_itunes_filtered.drop_duplicates()
+        return df_itunes_filtered
         logging.info(f"Itunes dataframe created successfully")
     
     except Exception as e:
         logging.error(f"An error occurred while reading iTunes data: {e}")
         return pd.DataFrame()
 
-    
+
 # Google data reading function
 def read_data_from_s3_google(files_to_process, bucket_name):
     """
@@ -659,8 +720,28 @@ def read_data_from_s3_google(files_to_process, bucket_name):
             logging.error(f"An error occurred while extracting file metadata: {e}")
             return None
     
+    # Remove all rows associated with unprocessed files.
+    def remove_associated_files(df, new_files_google, new_raw_metadata_google):
+        try:
+            files_with_issue = new_files_google.merge(new_raw_metadata_google, 
+                                                      how='left', 
+                                                      on=['raw_file_path', 'months_in_data'],
+                                                      indicator=True)
+            files_with_issue = files_with_issue[files_with_issue['_merge'] == 'left_only']
+            files_with_issue.drop('_merge', axis=1, inplace=True)
+
+            months_in_data = files_with_issue['months_in_data'].tolist()
+            logging.error(f"Files not processed for Google date: {files_with_issue['months_in_data'].unique().tolist()}")
+            df_google = df[~df['Transaction Date'].isin(months_in_data)]
+            return df_google
+        except Exception as e:
+            logging.error(f"Failed to remove faulty files from google data, Error {e}")
+    
+    
     try:
+        logging.info(f"Processing files for Google")
         google_files_df = files_to_process[files_to_process['platform'] == 'Google']
+        google_files_df.sort_values(by=['months_in_data'], ascending=False)
         
         if google_files_df.empty:
             logging.warning("No new Google files to process.")
@@ -674,6 +755,7 @@ def read_data_from_s3_google(files_to_process, bucket_name):
             try:
                 s3_url = row['raw_file_path']
                 file_key = s3_url.split(f's3://{input_bucket_name}/')[1]
+                logging.info(f"Processing started for file: {file_key}")
                 file_name = os.path.basename(file_key)
                 file_extension = os.path.splitext(file_key)[1]
                 file_creation_date = extract_file_metadata(file_key)
@@ -739,21 +821,34 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                         ) 
                         
                     df_list_google.append(df)
+                    logging.info(f"Processing Completed for file: {file_key}")
                 except Exception as e:
                     logging.error(f"An error occurred while creating Google dataframe: {file_key}, Error: {e}")
             except Exception as e:
-                    logging.error(f"An error occurred while reading Google file: {file_key}, Error: {e}")
+                    logging.error(f"Processing failed for file: {file_key}, Error: {e}")
+                    logging.error(f"Removing all files associated with same platfrom and month")
+                    for index, row in itunes_files_df.iterrows():
+                        month_in_data = row['months_in_data']
+                        platform = row['platform']
+                        google_files_df = google_files_df[~((google_files_df['months_in_data'] == month_in_data) \
+                                                        & (df['platform'] == platform))]
                     
         df_google = pd.concat(df_list_google, ignore_index=True)
-        df_google.drop_duplicates()
         
-        return df_google
+        raw_google_metadata = pd.DataFrame(new_raw_metadata_google)
+        
+        df_google_filtered = remove_associated_files(df_google, google_files_df, raw_google_metadata)
+        
+        df_google_filtered.drop_duplicates()
+        
+        return df_google_filtered
         logging.info(f"Google Dataframe created successfully")
     
     except Exception as e:
         logging.error(f"An error occurred while reading Google data: {e}")
         return pd.DataFrame()
-   
+
+    
 # Write data to s3  
 def write_data_to_s3(df, bucket_name, file_key):
     """
@@ -823,14 +918,15 @@ def write_data_to_s3(df, bucket_name, file_key):
                 except Exception as e:
                     logging.error(f"An error occurred while writing metric data to S3: {e}")
                     raise RuntimeError("Failed to write data to S3.") from e
-        path = f's3://{bucket_name}/{file_key_name}'
-        data.to_csv(path, index=False, mode='w')
-        logging.info(f"Data writing to S3 is successful.")
+                path = f's3://{bucket_name}/{file_key_name}'
+                data.to_csv(path, index=False, mode='w')
+                logging.info(f"Data writing to S3 is successful for file{file_name}.")
     except Exception as e:
         logging.error(f"An error occurred while writing data to S3: {e}")
         raise RuntimeError("Failed to write data to S3.") from e
         
-        
+
+
 # concat processed metadata
 def concat_metadata(raw_metadata, processed_metadata):
     """
@@ -1094,6 +1190,7 @@ try:
         'TRANSACTION_FORMAT', 'MEDIA_FORMAT', 'RETAIL_PRICE_NATIVE', 'UNIT_COST_NATIVE', 'QUANTITY', 
         'REVENUE_NATIVE', 'COST_NATIVE', 'REVENUE_USD', 'COST_USD', 'CONVERSION_RATE'])
 
+    
     # Write Transformed Data to S3 with partitions
     try:
         write_data_to_s3(final_df, output_bucket_name, output_folder_key)
@@ -1102,7 +1199,7 @@ try:
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
         raise RuntimeError("Failed to Write Data.") from e
     
-    # Write metadata
+    
     # Get metadata from current iteration
     new_raw_metadata_df = raw_metadata(new_raw_metadata_amazon, new_raw_metadata_itunes, new_raw_metadata_google)
     
@@ -1112,13 +1209,18 @@ try:
     # Concat new_raw_metadata_df and new_processed_metadata_all
     combined_processed_metadata = concat_metadata(new_raw_metadata_df, new_processed_metadata_all)
     
+    # Drop rows with any null values
     combined_processed_metadata_filtered = combined_processed_metadata.dropna(how='any')
     
     # Get all files with null metadata
-    files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]).drop_duplicates(keep=False)
+    files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]) \
+                            .drop_duplicates(keep=False)
+    
+    # Log file names to log file
     file_names = files_not_processed['raw_file_path'].tolist()
     logging.info(f'List of all files which have null metadata: {file_names}')
     
+
     # Put metadata file in s3
     append_metadata_to_csv(combined_processed_metadata_filtered, processed_metadata_bucket, processed_metadata_file_key)
     
@@ -1130,7 +1232,6 @@ try:
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
-    
     matrics_metadata = matrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
     matrics_metadata_filtered = matrics_metadata.dropna(how='any')
     
