@@ -38,10 +38,6 @@ class DtoDataProcessAmazon:
     def __init__(self, platform, df):
         self.platform = platform
         self.df = df
-        try:
-            self.df['TRANSACTION_DATE'] = pd.to_datetime(self.df['TRANSACTION_DATE'], format='%Y-%m').dt.strftime('%m-%Y')
-        except Exception as e:
-            raise ValueError(f"Error converting TRANSACTION_DATE column: {e}")
         
         # Define columns to drop
         self.columns_to_drop = [
