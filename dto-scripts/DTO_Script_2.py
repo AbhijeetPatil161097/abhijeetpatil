@@ -361,7 +361,6 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
         raw_amazon_metadata = pd.DataFrame(new_raw_metadata_amazon)
         
         df_amazon_filtered = remove_associated_files(df_amazon, amazon_files_df, raw_amazon_metadata)
-        df_amazon_filtered.drop_duplicates()
 
         return df_amazon_filtered
         logging.info(f"Amazon Dataframe created successfully")
@@ -651,9 +650,9 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
     
         # remove all data with incomplete files
         df_itunes_filtered = remove_associated_files(df_itunes, itunes_files_df, raw_itunes_metadata)
+       
         logging.info(f"months_in_data: {df_itunes_filtered['Begin Date'].unique().tolist()}")
-        
-        df_itunes_filtered.drop_duplicates()
+       
         return df_itunes_filtered
         logging.info(f"Itunes dataframe created successfully")
     
@@ -838,8 +837,6 @@ def read_data_from_s3_google(files_to_process, bucket_name):
         raw_google_metadata = pd.DataFrame(new_raw_metadata_google)
         
         df_google_filtered = remove_associated_files(df_google, google_files_df, raw_google_metadata)
-        
-        df_google_filtered.drop_duplicates()
         
         return df_google_filtered
         logging.info(f"Google Dataframe created successfully")
