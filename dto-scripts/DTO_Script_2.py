@@ -826,11 +826,6 @@ def read_data_from_s3_google(files_to_process, bucket_name):
             except Exception as e:
                     logging.error(f"Processing failed for file: {file_key}, Error: {e}")
                     logging.error(f"Removing all files associated with same platfrom and month")
-                    for index, row in itunes_files_df.iterrows():
-                        month_in_data = row['months_in_data']
-                        platform = row['platform']
-                        google_files_df = google_files_df[~((google_files_df['months_in_data'] == month_in_data) \
-                                                        & (df['platform'] == platform))]
                     
         df_google = pd.concat(df_list_google, ignore_index=True)
         
