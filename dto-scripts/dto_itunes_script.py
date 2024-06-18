@@ -206,7 +206,6 @@ class DtoDataProcessItunes:
     
     def calculate_metric_values(self, unit_retail_price, retail_price, quantity_col, revenue_col, unit_revenue_col):
         try:
-            self.df[revenue_col] = self.df[unit_revenue_col] * self.df[quantity_col].abs()
             self.df[retail_price] = self.df[unit_retail_price] * self.df[quantity_col].abs()
             
         except Exception as e:
