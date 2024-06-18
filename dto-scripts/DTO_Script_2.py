@@ -607,7 +607,6 @@ try:
         df_itunes = read_data_from_s3_itunes(files_to_process, input_bucket_name)
         itunes_monthly_data = DtoDataProcessItunes('Itunes', df_itunes)
         df_transformed_itunes = itunes_monthly_data.process_data_source()
-        logging.info(f"{df_transformed_itunes.head().to_string()}")
         logging.info(f"Itunes Data Processing success")
     except Exception as e:
         logging.error(f"An error occurred during iTunes data processing: {e}")
@@ -648,8 +647,10 @@ try:
     month_end_currency_data = get_last_reporting_start_date_rows(currency_df)
     # Map conversion rates
     final_df = map_conversion_rates(month_end_currency_data, final_df)
+    
     # Map revenue and cost in USD
     final_df = map_revenue_cost_usd(final_df)
+    
     final_df = final_df.reindex(columns=[
         'PARTNER', 'VENDOR_ASSET_ID', 'TERRITORY', 'TRANSACTION_DATE', 'PARTNER_TITLE', 'TITLE', 
         'TRANSACTION_FORMAT', 'MEDIA_FORMAT', 'TRANSACTION_TYPE', 'PURCHASE_LOCATION', 'VIDEO_CATEGORY', 
@@ -657,8 +658,6 @@ try:
         'RETAIL_PRICE_USD', 'UNIT_REVENUE_NATIVE', 'UNIT_REVENUE_USD', 'REVENUE_NATIVE', 'REVENUE_USD', 'CONVERSION_RATE',
         'IS_CONVERSION_RATE'
     ])
-    itunes = final_df[final_df['PARTNER'] == 'itunes']
-    logging.info(f"{itunes.head().to_string()}")
     # Write Transformed Data to S3 with partitions
     try:
         write_data_to_s3(final_df, output_bucket_name, output_folder_key)
@@ -676,10 +675,6 @@ try:
     
     # Concat new_raw_metadata_df and new_processed_metadata_all
     combined_processed_metadata = concat_metadata(new_raw_metadata_df, new_processed_metadata_all)
-    itunes_data = combined_processed_metadata[combined_processed_metadata['partner'] == 'itunes']
-
-    # Convert filtered DataFrame to string and log it
-    logging.info(f"iTunes data:\n{itunes_data.to_string(index=False)}")
     
     # Drop rows with any null values
     combined_processed_metadata_filtered = combined_processed_metadata.dropna(how='any')
@@ -687,7 +682,6 @@ try:
     # Get all files with null metadata
     files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]) \
                             .drop_duplicates(keep=False)
-    logging.info(f"iTunes data:\n{files_not_processed.to_string(index=False)}")
     # Log file names to log file
     file_names = files_not_processed['raw_file_path'].tolist()
     logging.info(f'List of all files which have null metadata: {file_names}')
@@ -703,7 +697,6 @@ try:
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
-    logging.info(f"iTunes data:\n{matrics_metadata.to_string(index=False)}")
     matrics_metadata = matrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
     matrics_metadata_filtered = matrics_metadata.dropna(how='any')
     
