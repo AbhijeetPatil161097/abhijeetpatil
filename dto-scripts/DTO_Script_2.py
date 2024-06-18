@@ -273,7 +273,7 @@ def _remove_associated_files(partner_df, new_files_amazon, new_raw_metadata, par
         files_with_issue = files_with_issue[files_with_issue['_merge'] == 'left_only']
         files_with_issue.drop('_merge', axis=1, inplace=True)
         months_in_data = files_with_issue['months_in_data'].tolist()
-        logging.error(f"Files not processed for Amazon date: {files_with_issue['months_in_data'].unique().tolist()}")
+        logging.error(f"Files not processed for {partner} date: {files_with_issue['months_in_data'].unique().tolist()}")
         
         if partner == 'amazon':
             return partner_df[~partner_df['TRANSACTION_DATE'].isin(months_in_data)]
