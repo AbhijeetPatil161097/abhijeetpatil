@@ -86,7 +86,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
 
         df_itunes = pd.concat(df_list_itunes, ignore_index=True)
         raw_metadata = pd.DataFrame(new_raw_metadata)
-        df_itunes_filtered = _remove_associated_files(df_itunes, itunes_files_df, raw_metadata)
+        df_itunes_filtered = _remove_associated_files(df_itunes, itunes_files_df, raw_metadata, partner)
         
         '''
         column_name = ['Asset/Content Flavor', 'Primary Genre', 'Provider Country', 'Sales or Return']
