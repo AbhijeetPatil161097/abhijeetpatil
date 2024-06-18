@@ -702,6 +702,7 @@ try:
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
+    logging.info(f"iTunes data:\n{matrics_metadata.to_string(index=False)}")
     matrics_metadata = matrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
     matrics_metadata_filtered = matrics_metadata.dropna(how='any')
     
