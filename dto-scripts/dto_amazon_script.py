@@ -81,7 +81,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
         
         df_amazon = pd.concat(df_list_amazon, ignore_index=True)
         raw_metadata = pd.DataFrame(new_raw_metadata)
-        df_amazon_filtered = _remove_associated_files(df_amazon, amazon_files_df, raw_metadata)
+        df_amazon_filtered = _remove_associated_files(df_amazon, amazon_files_df, raw_metadata, partner)
 
         logging.info("Amazon DataFrame created successfully")
         return df_amazon_filtered
