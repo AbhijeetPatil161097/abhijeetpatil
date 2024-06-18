@@ -671,7 +671,7 @@ try:
     
     
     # Get metadata from current iteration
-    new_raw_metadata_df = raw_metadata(metadata_df)
+    new_raw_metadata_df = raw_metadata(new_raw_metadata)
     
     # Get metadata after completion of data transformation
     new_processed_metadata_all = pd.DataFrame(new_processed_metadata_all)
