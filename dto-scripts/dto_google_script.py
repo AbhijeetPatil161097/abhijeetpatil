@@ -69,8 +69,8 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                                     )
             logging.info(f"step 6")
             
-        df_list_google.append(df)
-        logging.info(f"Processing completed for file: {file_key}")
+            df_list_google.append(df)
+            logging.info(f"Processing completed for file: {file_key}")
 
         df_google = pd.concat(df_list_google, ignore_index=True)
         raw_metadata = pd.DataFrame(new_raw_metadata)
