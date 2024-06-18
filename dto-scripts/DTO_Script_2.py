@@ -164,7 +164,7 @@ def read_script_from_s3(bucket_name, file_key):
         
         
 def _filter_partner_files(files_to_process, partner):
-    filtered_df =  files_to_process[files_to_process[partner] == partner]
+    filtered_df =  files_to_process[files_to_process['partner'] == partner]
     return filtered_df
 
 def _read_file_from_s3(file_key, file_extension):
