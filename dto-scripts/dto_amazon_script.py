@@ -26,7 +26,6 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
         df_list_amazon = []
         
         amazon_files_df = _filter_partner_files(files_to_process, partner)
-        logging.info(f"{amazon_files_df.head().tolist()}")
         if amazon_files_df.empty:
             logging.error("No new Amazon files to process.")
             return pd.DataFrame()
