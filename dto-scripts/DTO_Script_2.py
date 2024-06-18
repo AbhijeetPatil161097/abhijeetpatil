@@ -53,10 +53,9 @@ new_raw_metadata = []
 
 new_processed_metadata_all = []
 
-metric_metadata_amazon = []
-metric_metadata_itunes = []
-metric_metadata_google = []
 metric_metadata = []
+
+metric_metadata_processed = []
 
 
 # Initialize logging
@@ -341,7 +340,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                 })
                 try:
                     if vendor_name == 'amazon':
-                        metric_metadata.append({
+                        metric_metadata_processed.append({
                             'processed_file_value': [data['QUANTITY'].sum(), 
                                                      data['REVENUE_NATIVE'].sum()
                                                     ],
@@ -351,7 +350,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                         })
                     elif vendor_name == 'itunes':
                         try:
-                            metric_metadata.append({
+                            metric_metadata_processed.append({
                                 'processed_file_value': [data['QUANTITY'].sum(),
                                                          data['REVENUE_NATIVE'].sum()
                                                         ],
@@ -362,7 +361,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                         except:
                             logging.error(f"An error occurred while writing itunes metric data to S3: {e}")
                     elif vendor_name == 'google':
-                        metric_metadata.append({
+                        metric_metadata_processed.append({
                             'processed_file_value': [data['QUANTITY'].sum(),
                                                      data['REVENUE_NATIVE'].sum()
                                                     ],
@@ -487,7 +486,7 @@ def map_revenue_cost_usd(df):
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
         
 
-def raw_metadata(new_raw_metadata_amazon, new_raw_metadata_itunes, new_raw_metadata_google):
+def raw_metadata(raw_metadata):
     """
     Function:
         * Creates a combined DataFrame from the metadata lists for Amazon, iTunes, and Google.
@@ -500,12 +499,8 @@ def raw_metadata(new_raw_metadata_amazon, new_raw_metadata_itunes, new_raw_metad
     Returns:
         * DataFrame: DataFrame of current iteration metadata.
     """
-    amazon_df = pd.DataFrame(new_raw_metadata_amazon)
-    itunes_df = pd.DataFrame(new_raw_metadata_itunes)
-    google_df = pd.DataFrame(new_raw_metadata_google)
-    
-    raw_metadata = pd.concat([amazon_df, itunes_df, google_df], ignore_index=True)
-    return raw_metadata
+    metadata_df = pd.DataFrame(raw_metadata)
+    return metadata_df
 
 
 def append_metadata_to_csv(new_processed_metadata, bucket_name, file_key):
@@ -666,7 +661,7 @@ try:
     
     
     # Get metadata from current iteration
-    new_raw_metadata_df = raw_metadata(new_raw_metadata_amazon, new_raw_metadata_itunes, new_raw_metadata_google)
+    new_raw_metadata_df = raw_metadata(metadata_df)
     
     # Get metadata after completion of data transformation
     new_processed_metadata_all = pd.DataFrame(new_processed_metadata_all)
@@ -690,10 +685,10 @@ try:
     append_metadata_to_csv(combined_processed_metadata_filtered, processed_metadata_bucket, processed_metadata_file_key)
     
     # Raw metrics data
-    raw_metrics_data = raw_metadata(metric_metadata_amazon, metric_metadata_itunes, metric_metadata_google)
+    raw_metrics_data = raw_metadata(metric_metadata)
     
     # create df of processed_metric
-    processed_metrics_data = pd.DataFrame(metric_metadata)
+    processed_metrics_data = pd.DataFrame(metric_metadata_processed)
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
