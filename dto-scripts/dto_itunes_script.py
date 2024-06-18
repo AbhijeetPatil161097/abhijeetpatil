@@ -42,19 +42,21 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 if df is None:
                     logging.error(f"Itunes file is empty or could not be read: {file_key}")
                     continue
-
+                logging.info(f"Step 1 Completed")
                 df['Start Date'] = pd.to_datetime(df['Start Date'], format = '%m/%d/%Y')
                 df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
-
+                logging.info(f"Step 2 Completed")
                 # Raise error if difference between Start Date and End Date is more  than 45 Days.
                 date_diff = (df['End Date'] - df['Start Date']).dt.days
+                logging.info(f"Step 3 Completed")
                 if (date_diff > 45).any():
                     logging.error("Begin Date and End Date difference is more than 1 month.")
 
-
+                logging.info(f"Step 4 Completed")
                 unique_months = ','.join(df['Start Date'].unique())
                 file_info = s3.info(f"{bucket_name}/{file_key}")
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
+                logging.info(f"Step 5 Completed")
                 file_row_count = len(df)
                 metrics= ['QUANTITY (Quantity)', 'REVENUE_NATIVE (Extended Partner Share)']
                 raw_file_values = [df['Quantity'].astype('int').sum(), 
@@ -70,7 +72,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                        unique_months,
                                        file_row_count
                                       )
-
+                logging.info(f"Step 6 Completed")
                 _collect_metric_metadata(bucket_name,
                                          file_key, 
                                          file_name, 
@@ -81,7 +83,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
 
                 df_list_itunes.append(df)
                 logging.info(f"Processing completed for file: {file_key}")
-
+                logging.info(f"Step 7 Completed")
             except Exception as e:
                 logging.error(f"An error occurred while reading Itunes data: {e}")
 
@@ -225,8 +227,8 @@ class DtoDataProcessItunes:
             
     def calculate_weigted_mean(self, unit_retail_price, retail_price, quantity_col, revenue_col, unit_revenue_col):
         try:
-            self.df[unit_retail_price] = self.df[retail_price] / self.df[quantity_col].abs()
-            self.df[unit_revenue_col] = self.df[revenue_col] / self.df[quantity_col].abs()
+            self.df[unit_retail_price] = self.df[retail_price] / self.df[quantity_col]
+            self.df[unit_revenue_col] = self.df[revenue_col] / self.df[quantity_col]
         except Exception as e:
             raise RuntimeError(f"Error calculating weighted mean: {e}")
     
