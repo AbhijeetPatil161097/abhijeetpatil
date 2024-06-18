@@ -38,7 +38,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
             file_name = os.path.basename(file_key)
             file_extension = os.path.splitext(file_key)[1].lower()
             df = _read_file_from_s3(bucket_name, file_key, file_extension)
-
+            logging.info(f"step df complete")
             if df is None:
                 logging.error(f"Amazon file is empty or could not be read: {file_key}")
                 continue
@@ -48,10 +48,11 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
             file_info = s3.info(f"{bucket_name}/{file_key}")
             file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
             file_row_count = len(df)
+            logging.info(f"step 4 complete")
             metrics= ['QUANTITY (Quantity)', 'REVENUE_NATIVE (Cost)']
             raw_file_values = [df['Quantity'].astype('float').sum(), 
                                df['Cost'].astype('float').sum()]
-
+            logging.info(f"step 1 complete")
             _collect_file_metadata(bucket_name, 
                                    file_key, 
                                    file_name, 
@@ -61,7 +62,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                                    unique_months,
                                    file_row_count
                                   )
-
+            logging.info(f"step 2 complete")
             _collect_metric_metadata(bucket_name,
                                      file_key, 
                                      file_name, 
@@ -69,10 +70,11 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                                      unique_months, metrics= metrics, 
                                      raw_file_values = raw_file_values
                                     )
-
+            
             df_list_amazon.append(df)
+            
             logging.info(f"Processing completed for file: {file_key}")
-
+        
         df_amazon = pd.concat(df_list_amazon, ignore_index=True)
         raw_metadata = pd.DataFrame(new_raw_metadata)
         df_amazon_filtered = _remove_associated_files(df_amazon, amazon_files_df, raw_metadata)
