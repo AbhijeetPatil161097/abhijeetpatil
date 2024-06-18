@@ -426,74 +426,67 @@ def get_last_reporting_start_date_rows(df):
 
 def map_conversion_rates(month_end_currency_data, final_df):
     """
-    Function:
-        * Maps conversion rates to all transformed data. ( Amazon + iTunes + Google)
+    Maps conversion rates to transformed data (Amazon, iTunes, Google).
     
     Parameters:
-        * month_end_currency_data: Month end data from function get_last_reporting_start_date_rows.
-        * final_df: All transformed partner data of ( Amazon + iTunes + Google)
+        month_end_currency_data: DataFrame with month-end currency data.
+        final_df: DataFrame with transformed partner data.
     
     Returns:
-        * Dataframe of all transformed partner data with newly mapped conversion rates.
+        DataFrame with updated conversion rates.
     """
     try:
-        
-        # Use conversion rates from snowflake to standardize the flow.
-        conversion_map = {(date, country): conversion_rate for date, country, conversion_rate in zip(
-            month_end_currency_data['REPORTING_START_DATE'], 
-            month_end_currency_data['COUNTRY_CODE'], 
-            month_end_currency_data['CONVERSION_RATE']
-        )}
-        logging.error(f"{final_df.columns.tolist()}")
-        # Map conversion rates based on date and country code where IS_CONVERSION_RATE is False
-        # Function to map conversion rate based on conditions
-        def map_conversion(row):
-            if not row['IS_CONVERSION_RATE']:  # Check if IS_CONVERSION_RATE is False
-                if row['TERRITORY'] == 'UK':
-                    return conversion_map.get((row['TRANSACTION_DATE'], 'GB'), None)
-                else:
-                    return conversion_map.get((row['TRANSACTION_DATE'], row['TERRITORY']), None)
-            else:
-                return row['CONVERSION_RATE']  # Keep original conversion rate if IS_CONVERSION_RATE is True
-        
-        # Apply mapping function to relevant rows
-        final_df['CONVERSION_RATE'] = final_df.apply(map_conversion, axis=1)
+        # Create a conversion map from the month-end data
+        conversion_map = {
+            (date, country): rate
+            for date, country, rate in zip(
+                month_end_currency_data['REPORTING_START_DATE'], 
+                month_end_currency_data['COUNTRY_CODE'], 
+                month_end_currency_data['CONVERSION_RATE']
+            )
+        }
+    
+        # Apply conversion rates to rows where IS_CONVERSION_RATE is False
+        final_df.loc[~final_df['IS_CONVERSION_RATE'], 'CONVERSION_RATE'] = final_df[~final_df['IS_CONVERSION_RATE']].apply(
+            lambda row: conversion_map.get(
+                (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY']), None), axis=1)
+        logging.info("Conversion rates mapping is successful.")
         return final_df
-        logging.info(f"Conversion rates mapping is successful.")
-        
+
     except Exception as e:
-        logging.error(f"An error occurred while mapping revenue USD: {e}")
-        raise RuntimeError("Failed to map conversion rates.") from e
+        logging.error(f"An error occurred while mapping conversion rates: {e}")
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("Failed to map conversion rates.") from e
+
         
         
 # Map values of revenue_usd and cost_usd to dataframe
 def map_revenue_cost_usd(df):
     """
-    Function:
-        * Maps revenue and cost in USD in Dataframe
+    Maps revenue and cost in USD in the DataFrame.
     
     Parameters:
-        * df: Dataframe from output of function (map_conversion_rates) after mapping conversion rates . 
+        df: DataFrame from the output of function (map_conversion_rates) after mapping conversion rates.
     
     Returns:
-        * Dataframe after mapping revenue and cost in usd.
-        
+        DataFrame after mapping revenue and cost in USD.
     """
     try:
+        # Apply conversion only if IS_CONVERSION_RATE is False
         if not df['IS_CONVERSION_RATE'].all():
-            df['REVENUE_USD'] = df['REVENUE_NATIVE'] * df['CONVERSION_RATE']
-            df['RETAIL_PRICE_USD'] = df['RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
-            df['UNIT_REVENUE_USD'] = df['UNIT_REVENUE_NATIVE'] * df['CONVERSION_RATE']
-            df['UNIT_RETAIL_PRICE_USD'] = df['UNIT_RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
+            df.loc[~df['IS_CONVERSION_RATE'], 'REVENUE_USD'] = df['REVENUE_NATIVE'] * df['CONVERSION_RATE']
+            df.loc[~df['IS_CONVERSION_RATE'], 'RETAIL_PRICE_USD'] = df['RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
+            df.loc[~df['IS_CONVERSION_RATE'], 'UNIT_REVENUE_USD'] = df['UNIT_REVENUE_NATIVE'] * df['CONVERSION_RATE']
+            df.loc[~df['IS_CONVERSION_RATE'], 'UNIT_RETAIL_PRICE_USD'] = df['UNIT_RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
         
+        logging.info("Revenue and cost in USD mapping is successful.")
         return df
-        logging.info(f"Revenue and Cost in USD mapping is successful.")
         
     except Exception as e:
-        logging.error(f"An error occurred while mapping revenue USD: {e}")
-        raise RuntimeError("Failed to map revenue and cost in USD.") from e
+        logging.error(f"An error occurred while mapping revenue and cost in USD: {e}")
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("Failed to map revenue and cost in USD.") from e
+
         
 
 def raw_metadata(raw_metadata):
@@ -630,7 +623,7 @@ try:
             df_itunes = df_transformed_itunes, 
             df_google = df_transformed_google
         )
-        
+        logging.info(f"Dataframes merged successfully")
         if final_df.empty:
             upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
             raise RuntimeError("Merged dataframe is empty.")
