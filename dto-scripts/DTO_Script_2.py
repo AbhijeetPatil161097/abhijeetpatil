@@ -442,7 +442,6 @@ def map_conversion_rates(month_end_currency_data, final_df):
             month_end_currency_data['COUNTRY_CODE'], 
             month_end_currency_data['CONVERSION_RATE']
         )}
-        logging.error(f"DataFrame content:\n{conversion_map}")
         # Apply conversion rates only where IS_CONVERSION_RATE is False
         def get_conversion_rate(row):
             if row['IS_CONVERSION_RATE'] == False:
@@ -608,6 +607,7 @@ try:
         df_itunes = read_data_from_s3_itunes(files_to_process, input_bucket_name)
         itunes_monthly_data = DtoDataProcessItunes('Itunes', df_itunes)
         df_transformed_itunes = itunes_monthly_data.process_data_source()
+        logging.info(f"{df_transformed_itunes.head().to_string()}")
         logging.info(f"Itunes Data Processing success")
     except Exception as e:
         logging.error(f"An error occurred during iTunes data processing: {e}")
