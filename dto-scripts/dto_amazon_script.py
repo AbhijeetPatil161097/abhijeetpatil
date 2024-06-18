@@ -210,10 +210,10 @@ class DtoDataProcessAmazon:
             
     def calculate_weighted_mean(self, unit_retail_price, unit_revenue, quantity_col, revenue_col, retail_price):
         try: 
-            self.df[unit_retail_price] = self.df[retail_price] / self.df[quantity_col].abs()
-            self.df[unit_revenue] = self.df[revenue_col] / self.df[quantity_col].abs()
+            self.df[unit_retail_price] = self.df[retail_price] / self.df[quantity_col]
+            self.df[unit_revenue] = self.df[revenue_col] / self.df[quantity_col]
         except Exception as e:
-            raise RuntimeError(f"Error calculating revenue: {e}")
+            raise RuntimeError(f"Error calculating weighted mean: {e}")
             
     
     def rename_columns(self):
