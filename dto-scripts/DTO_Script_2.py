@@ -417,7 +417,7 @@ def get_last_reporting_start_date_rows(df):
         df['REPORTING_START_DATE'] = pd.to_datetime(df['REPORTING_START_DATE'])
         df = df.sort_values(by=['COUNTRY_CODE', 'REPORTING_START_DATE'])
         result_df = df.groupby(['COUNTRY_CODE', df['REPORTING_START_DATE'].dt.to_period('M')]).apply(lambda x: x.tail(1)).reset_index(drop=True)
-        result_df['REPORTING_START_DATE'] = result_df['REPORTING_START_DATE'].dt.strftime('%m-%Y')
+        result_df['REPORTING_START_DATE'] = result_df['REPORTING_START_DATE'].dt.strftime('%Y-%m')
         logging.info(f"Detching Conversion Rates for month end dates successful")
         return result_df
     except Exception as e:
