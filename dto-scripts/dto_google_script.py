@@ -243,10 +243,10 @@ class DtoDataProcessGoogle:
         
     def calculate_weigted_mean(self, quantity_col):
         try:
-            self.df[self.unit_retail_price_native] = self.df[self.retail_price_native] / self.df[quantity_col].abs()
-            self.df[self.unit_retail_price_usd] = self.df[self.retail_price_usd]  / self.df[quantity_col].abs()
-            self.df[self.unit_revenue_native] = self.df[self.revenue_native] / self.df[quantity_col].abs()
-            self.df[self.unit_revenue_usd] = self.df[self.revenue_usd] / self.df[quantity_col].abs()
+            self.df[self.unit_retail_price_native] = self.df[self.retail_price_native] / self.df[quantity_col]
+            self.df[self.unit_retail_price_usd] = self.df[self.retail_price_usd]  / self.df[quantity_col]
+            self.df[self.unit_revenue_native] = self.df[self.revenue_native] / self.df[quantity_col]
+            self.df[self.unit_revenue_usd] = self.df[self.revenue_usd] / self.df[quantity_col]
         except Exception as e:
             raise RuntimeError(f"Error calculating revenue: {e}")
     
