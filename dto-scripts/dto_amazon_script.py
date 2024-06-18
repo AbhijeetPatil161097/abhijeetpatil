@@ -22,7 +22,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
     try:
         logging.info("Processing files for Amazon")
         
-
+        partner = 'amazon'
         df_list_amazon = []
         
         amazon_files_df = _filter_partner_files(files_to_process, partner)
