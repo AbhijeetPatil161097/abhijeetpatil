@@ -49,9 +49,8 @@ processed_metadata_file_key = 'Projects/DTO/Metadata/processed_metadata.csv'
 
 
 # Create empty lists to store metadata
-new_raw_metadata_amazon = []
-new_raw_metadata_itunes = []
-new_raw_metadata_google = []
+new_raw_metadata = []
+
 new_processed_metadata_all = []
 
 metric_metadata_amazon = []
