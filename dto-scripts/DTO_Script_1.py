@@ -379,8 +379,8 @@ def read_data_from_s3_amazon(bucket_name, prefix):
                         'raw_file_path': f"s3://{bucket_name}/{file_key}",  # S3 path
                         'raw_file_name': file_name,                         # file name
                         'raw_file_creation_date': file_creation_date,       # file modification date in s3
-                        'platform': 'Amazon',
-                        'partner': 'DTO',
+                        'platform': 'DTO',
+                        'partner': 'amazon',
                         'raw_file_name_month': df['TRANSACTION_DATE'].unique()[0], # month from file name
                         'raw_file_row_count': file_row_count,                      # row count from file
                         'months_in_data': unique_months,                           # unique months from file
@@ -476,8 +476,8 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                             'raw_file_name': file_name,
                             'raw_file_creation_date': file_creation_date,
                             'raw_file_name_month': file_date.strftime('%Y-%m'),
-                            'platform': 'Itunes',
-                            'partner': 'DTO',
+                            'platform': 'DTO',
+                            'partner': 'itunes',
                             'raw_file_row_count': file_row_count,
                             'months_in_data': unique_months,
                             'num_unique_months': len(df['Begin Date'].unique())
@@ -529,8 +529,8 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                                 'raw_file_name': file_name,
                                 'raw_file_creation_date': file_creation_date,
                                 'raw_file_name_month': file_date_formatted,
-                                'platform': 'Itunes',
-                                'partner': 'DTO',
+                                'platform': 'DTO',
+                                'partner': 'itunes',
                                 'raw_file_row_count': file_row_count,
                                 'months_in_data': unique_months,
                                 'num_unique_months': len(df['Start Date'].unique())
@@ -624,8 +624,8 @@ def read_data_from_s3_google(bucket_name, prefix):
                             'raw_file_name': file_name,
                             'raw_file_creation_date': file_creation_date,
                             'raw_file_name_month': file_date.strftime('%Y-%m'),
-                            'platform': 'Google',
-                            'partner': 'DTO',
+                            'platform': 'DTO',
+                            'partner': 'google',
                             'raw_file_row_count': file_row_count,
                             'months_in_data': unique_months,
                             'num_unique_months': len(df['Transaction Date'].unique())
