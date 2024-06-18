@@ -50,9 +50,10 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 date_diff = (df['End Date'] - df['Start Date']).dt.days
                 logging.info(f"Step 3 Completed")
                 if (date_diff > 45).any():
-                    logging.error("Begin Date and End Date difference is more than 1 month.")
+                    logging.error("Start Date and End Date difference is more than 1 month.")
 
                 logging.info(f"Step 4 Completed")
+                df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
                 unique_months = ','.join(df['Start Date'].unique())
                 file_info = s3.info(f"{bucket_name}/{file_key}")
                 logging.info(f"Step 4.5 Completed")
