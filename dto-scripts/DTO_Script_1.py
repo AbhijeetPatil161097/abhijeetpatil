@@ -195,10 +195,10 @@ def get_new_files(old_metadata_df, current_metadata_df):
         
         * merge_dataframes: 
         Merges exploded current_metadata_df on old_metadata_df on given columns to get different rows.
-        Gets only unique combinations of platform and months_in_data.
+        Gets only unique combinations of partner and months_in_data.
         
         * filter_matching_rows:
-        Get all rows from exploded current_metadata_df associated with unique platform and months_in_data
+        Get all rows from exploded current_metadata_df associated with unique partner and months_in_data
     
     """
     
@@ -225,29 +225,29 @@ def get_new_files(old_metadata_df, current_metadata_df):
         
         Returns:
         merged_df: Dataframe with all rows different rows. (current_df - old_df) 
-                   based on ('raw_file_path', 'raw_file_creation_date', 'platform', 'months_in_data')
+                   based on ('raw_file_path', 'raw_file_creation_date', 'partner', 'months_in_data')
                    
         """
-        on_cols = ['raw_file_path', 'raw_file_creation_date', 'platform', 'months_in_data']
+        on_cols = ['raw_file_path', 'raw_file_creation_date', 'partner', 'months_in_data']
         
         merged_df = current_df.merge(old_df, on=on_cols, how='left', indicator=True)
         
-        merged_df = merged_df.query('_merge=="left_only"')[['months_in_data', 'platform']].drop_duplicates()
+        merged_df = merged_df.query('_merge=="left_only"')[['months_in_data', 'partner']].drop_duplicates()
         return merged_df
 
     def filter_matching_rows(current_metadata_df, merged_df):
         """
-        Gets all rows with unique combinations of platform and months_in_data from merged_df
+        Gets all rows with unique combinations of partner and months_in_data from merged_df
         
         Params:
             * current_metadata_df: Exploded dataframe from explode_months_in_data_column
-            * merged_df: Dataframe of unique combination of months_in_data and platform.
+            * merged_df: Dataframe of unique combination of months_in_data and partner.
             
         Returns:
-        matching_rows_df: Dataframe of all matching rows matching combination of months_in_data and platform
+        matching_rows_df: Dataframe of all matching rows matching combination of months_in_data and partner
                           from current_metadata_df
         """
-        matching_rows_df = pd.merge(current_metadata_df, merged_df, on=['months_in_data', 'platform'], how='inner')
+        matching_rows_df = pd.merge(current_metadata_df, merged_df, on=['months_in_data', 'partner'], how='inner')
         matching_rows_df = matching_rows_df.drop_duplicates()
         return matching_rows_df
     
