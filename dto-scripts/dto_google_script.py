@@ -72,7 +72,7 @@ def read_data_from_s3_google(files_to_process, bucket_name):
 
         df_google = pd.concat(df_list_google, ignore_index=True)
         raw_metadata = pd.DataFrame(new_raw_metadata)
-        df_google_filtered = _remove_associated_files(df_google, google_files_df, raw_metadata)
+        df_google_filtered = _remove_associated_files(df_google, google_files_df, raw_metadata, partner)
 
         return df_google_filtered
                                      
