@@ -418,6 +418,7 @@ def get_last_reporting_start_date_rows(df):
         df = df.sort_values(by=['COUNTRY_CODE', 'REPORTING_START_DATE'])
         result_df = df.groupby(['COUNTRY_CODE', df['REPORTING_START_DATE'].dt.to_period('M')]).apply(lambda x: x.tail(1)).reset_index(drop=True)
         result_df['REPORTING_START_DATE'] = result_df['REPORTING_START_DATE'].dt.strftime('%m-%Y')
+        logging.info(f"Detching Conversion Rates for month end dates successful")
         return result_df
     except Exception as e:
         logging.error(f"An error occurred while getting last reporting start date rows: {e}")
@@ -441,7 +442,7 @@ def map_conversion_rates(month_end_currency_data, final_df):
             month_end_currency_data['COUNTRY_CODE'], 
             month_end_currency_data['CONVERSION_RATE']
         )}
-        
+        logging.error(f"DataFrame content:\n{conversion_map.head().to_string()}")
         # Apply conversion rates only where IS_CONVERSION_RATE is False
         def get_conversion_rate(row):
             if row['IS_CONVERSION_RATE'] == False:
