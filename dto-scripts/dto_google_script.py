@@ -21,21 +21,19 @@ def read_data_from_s3_google(files_to_process, bucket_name):
             file_extension = os.path.splitext(file_key)[1]
 
             file_name_month = _extract_date_from_file_key(file_key, partner)
-            logging.info(f"step 1")
             df = _read_file_from_s3(bucket_name, file_key, file_extension)                          
             if df is None:
                 logging.error(f"Google file is empty: {file_key}")
                 continue
-            logging.info(f"step 2")
+                
             country_index = df.index[df['Per Transaction Report'] == 'Country'].tolist()[0]
-            logging.info(f"step 3")
             df = df.iloc[country_index:]
             df.columns = df.iloc[0]
             df = df[1:]
+            
             # Convert column headers to strings explicitly
             df.columns = [re.sub(pattern, '', col) for col in df.columns]
             df = df.dropna(subset = ['Transaction Date', 'YouTube Video ID'])
-            logging.info(f"step 4")
             df['Transaction Date'] = pd.to_datetime(df['Transaction Date'])
             df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
             df['QUANTITY'] = 1
@@ -59,7 +57,6 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                                     unique_months,
                                     file_row_count
                                     )
-            logging.info(f"step 5")
             _collect_metric_metadata(bucket_name,
                                      file_key, 
                                      file_name, 
@@ -67,7 +64,6 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                                      unique_months, metrics= metrics, 
                                      raw_file_values = raw_file_values
                                     )
-            logging.info(f"step 6")
             
             df_list_google.append(df)
             logging.info(f"Processing completed for file: {file_key}")
