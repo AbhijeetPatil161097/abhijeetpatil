@@ -675,6 +675,10 @@ try:
     
     # Concat new_raw_metadata_df and new_processed_metadata_all
     combined_processed_metadata = concat_metadata(new_raw_metadata_df, new_processed_metadata_all)
+    itunes_data = combined_processed_metadata[combined_processed_metadata['partner'] == 'itunes']
+
+    # Convert filtered DataFrame to string and log it
+    logging.info(f"iTunes data:\n{itunes_data.to_string(index=False)}")
     
     # Drop rows with any null values
     combined_processed_metadata_filtered = combined_processed_metadata.dropna(how='any')
@@ -682,7 +686,7 @@ try:
     # Get all files with null metadata
     files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]) \
                             .drop_duplicates(keep=False)
-    
+    logging.info(f"iTunes data:\n{files_not_processed.to_string(index=False)}")
     # Log file names to log file
     file_names = files_not_processed['raw_file_path'].tolist()
     logging.info(f'List of all files which have null metadata: {file_names}')
