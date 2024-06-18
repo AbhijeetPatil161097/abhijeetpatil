@@ -444,12 +444,22 @@ def map_conversion_rates(month_end_currency_data, final_df):
             month_end_currency_data['COUNTRY_CODE'], 
             month_end_currency_data['CONVERSION_RATE']
         )}
-
+        logging.error(f"{final_df.columns.tolist()}")
         # Map conversion rates based on date and country code where IS_CONVERSION_RATE is False
-        if not row['IS_CONVERSION_RATE']:
-            final_df['CONVERSION_RATE'] = final_df.apply(lambda row: conversion_map.get((row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY']), None), axis=1)
-            return final_df
-            logging.info(f"Conversion rates mapping is successful.")
+        # Function to map conversion rate based on conditions
+        def map_conversion(row):
+            if not row['IS_CONVERSION_RATE']:  # Check if IS_CONVERSION_RATE is False
+                if row['TERRITORY'] == 'UK':
+                    return conversion_map.get((row['TRANSACTION_DATE'], 'GB'), None)
+                else:
+                    return conversion_map.get((row['TRANSACTION_DATE'], row['TERRITORY']), None)
+            else:
+                return row['CONVERSION_RATE']  # Keep original conversion rate if IS_CONVERSION_RATE is True
+        
+        # Apply mapping function to relevant rows
+        final_df['CONVERSION_RATE'] = final_df.apply(map_conversion, axis=1)
+        return final_df
+        logging.info(f"Conversion rates mapping is successful.")
         
     except Exception as e:
         logging.error(f"An error occurred while mapping revenue USD: {e}")
@@ -471,7 +481,7 @@ def map_revenue_cost_usd(df):
         
     """
     try:
-        if not row['IS_CONVERSION_RATE']:
+        if not df['IS_CONVERSION_RATE']:
             df['REVENUE_USD'] = df['REVENUE_NATIVE'] * df['CONVERSION_RATE']
             df['RETAIL_PRICE_USD'] = df['RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
             df['UNIT_REVENUE_USD'] = df['UNIT_REVENUE_NATIVE'] * df['CONVERSION_RATE']
