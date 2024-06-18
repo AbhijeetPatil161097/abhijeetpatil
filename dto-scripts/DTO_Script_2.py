@@ -278,7 +278,7 @@ def _remove_associated_files(partner_df, new_files_amazon, new_raw_metadata, par
         if partner == 'amazon':
             return partner_df[~partner_df['TRANSACTION_DATE'].isin(months_in_data)]
         elif partner == 'itunes':
-            return partner_df[~partner_df['Begin Date'].isin(months_in_data)]
+            return partner_df[~partner_df['Start Date'].isin(months_in_data)]
         elif partner == 'google':
             return partner_df[~partner_df['Transaction Date'].isin(months_in_data)]
             
