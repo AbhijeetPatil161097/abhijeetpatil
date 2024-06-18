@@ -22,7 +22,7 @@ def read_data_from_s3_google(files_to_process, bucket_name):
 
             file_name_month = _extract_date_from_file_key(file_key, partner)
 
-            df = _read_file_from_s3(file_key, file_extension)                          
+            df = _read_file_from_s3(bucket_name, file_key, file_extension)                          
             if df is None:
                 logging.error(f"Google file is empty: {file_key}")
                 continue
