@@ -445,7 +445,7 @@ def map_conversion_rates(month_end_currency_data, final_df):
         
         # Apply conversion rates only where IS_CONVERSION_RATE is False
         def get_conversion_rate(row):
-            if not row['IS_CONVERSION_RATE']:
+            if row['IS_CONVERSION_RATE'] == False:
                 key = (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY'])
                 return conversion_map.get(key, None)
             return row['CONVERSION_RATE']
@@ -475,7 +475,7 @@ def map_revenue_cost_usd(df):
     """
     try:
         # Apply conversion only if IS_CONVERSION_RATE is False
-        mask = ~df['IS_CONVERSION_RATE']
+        mask = df['IS_CONVERSION_RATE'] == False
         
         if mask.any():
             df.loc[mask, 'REVENUE_USD'] = df.loc[mask, 'REVENUE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
