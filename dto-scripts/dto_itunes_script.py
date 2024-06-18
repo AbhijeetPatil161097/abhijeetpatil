@@ -55,6 +55,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 logging.info(f"Step 4 Completed")
                 unique_months = ','.join(df['Start Date'].unique())
                 file_info = s3.info(f"{bucket_name}/{file_key}")
+                logging.info(f"Step 4.5 Completed")
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
                 logging.info(f"Step 5 Completed")
                 file_row_count = len(df)
