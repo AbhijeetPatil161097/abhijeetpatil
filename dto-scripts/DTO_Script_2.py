@@ -452,6 +452,7 @@ def map_conversion_rates(month_end_currency_data, final_df):
                 (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY']), None), axis=1)
         logging.info("Conversion rates mapping is successful.")
         return final_df
+        logging.error(f'{final_df['CONVERSION_RATE'].tolist()}')
 
     except Exception as e:
         logging.error(f"An error occurred while mapping conversion rates: {e}")
@@ -479,8 +480,11 @@ def map_revenue_cost_usd(df):
             df.loc[~df['IS_CONVERSION_RATE'], 'UNIT_REVENUE_USD'] = df['UNIT_REVENUE_NATIVE'] * df['CONVERSION_RATE']
             df.loc[~df['IS_CONVERSION_RATE'], 'UNIT_RETAIL_PRICE_USD'] = df['UNIT_RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
         
-        logging.info("Revenue and cost in USD mapping is successful.")
-        return df
+            logging.info("Revenue and Retail Price in USD mapping is successful.")
+            return df
+        else:
+            logging.info("Revenue and Retail Price in USD not mapped.")
+            return df
         
     except Exception as e:
         logging.error(f"An error occurred while mapping revenue and cost in USD: {e}")
@@ -689,9 +693,10 @@ try:
     
     # Raw metrics data
     raw_metrics_data = raw_metadata(metric_metadata)
-    
+    logging.error(f"raw_metrics_data: {raw_metrics_data.head()}")
     # create df of processed_metric
     processed_metrics_data = pd.DataFrame(metric_metadata_processed)
+    logging.error(f"processed_metrics_data: {processed_metrics_data.head()}")
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
