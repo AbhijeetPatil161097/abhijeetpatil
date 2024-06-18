@@ -63,7 +63,7 @@ files_to_process_file_key = 'Projects/DTO/Misc/new_files_to_process.csv'
 input_bucket_name = 'azv-s3str-pmsa1'
 
 input_folder_key_amazon = 'dto_individual_partners/amazon/monthly/'
-input_folder_key_itunes = 'dto_individual_partners/itunes/monthly/'
+input_folder_key_itunes = 'dto_individual_partners/itunes/monthly/revenue/'
 input_folder_key_google = 'dto_individual_partners/google/monthly/'
 
 
