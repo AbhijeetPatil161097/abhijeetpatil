@@ -442,7 +442,7 @@ def map_conversion_rates(month_end_currency_data, final_df):
             month_end_currency_data['COUNTRY_CODE'], 
             month_end_currency_data['CONVERSION_RATE']
         )}
-        logging.error(f"DataFrame content:\n{conversion_map.head().to_string()}")
+        logging.error(f"DataFrame content:\n{conversion_map}")
         # Apply conversion rates only where IS_CONVERSION_RATE is False
         def get_conversion_rate(row):
             if row['IS_CONVERSION_RATE'] == False:
