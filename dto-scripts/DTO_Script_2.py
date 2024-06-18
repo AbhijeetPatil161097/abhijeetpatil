@@ -657,7 +657,8 @@ try:
         'RETAIL_PRICE_USD', 'UNIT_REVENUE_NATIVE', 'UNIT_REVENUE_USD', 'REVENUE_NATIVE', 'REVENUE_USD', 'CONVERSION_RATE',
         'IS_CONVERSION_RATE'
     ])
-
+    itunes = final_df[final_df['PARTNER'] == 'itunes']
+    logging.info(f"{itunes.head().to_string()}")
     # Write Transformed Data to S3 with partitions
     try:
         write_data_to_s3(final_df, output_bucket_name, output_folder_key)
