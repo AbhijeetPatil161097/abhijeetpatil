@@ -452,7 +452,7 @@ def map_conversion_rates(month_end_currency_data, final_df):
                 (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY']), None), axis=1)
         logging.info("Conversion rates mapping is successful.")
         return final_df
-        logging.error(f'{final_df['CONVERSION_RATE'].tolist()}')
+        logging.error(f"{final_df['CONVERSION_RATE'].tolist()}")
 
     except Exception as e:
         logging.error(f"An error occurred while mapping conversion rates: {e}")
