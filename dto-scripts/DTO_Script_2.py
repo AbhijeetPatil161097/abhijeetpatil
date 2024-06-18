@@ -296,7 +296,7 @@ def _extract_date_from_file_key(file_key, partner):
         else:
             date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
         
-        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m)
+        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m')
                 if date_match else None).strftime('%Y-%m')
 
     if partner == 'google':
@@ -436,7 +436,6 @@ def map_conversion_rates(month_end_currency_data, final_df):
         * Dataframe of all transformed partner data with newly mapped conversion rates.
     """
     try:
-        # Create a dictionary for quick lookup of conversion rates
         conversion_map = {(date, country): conversion_rate for date, country, conversion_rate in zip(
             month_end_currency_data['REPORTING_START_DATE'], 
             month_end_currency_data['COUNTRY_CODE'], 
