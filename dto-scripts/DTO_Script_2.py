@@ -481,7 +481,7 @@ def map_revenue_cost_usd(df):
         
     """
     try:
-        if not df['IS_CONVERSION_RATE']:
+        if not df['IS_CONVERSION_RATE'].all():
             df['REVENUE_USD'] = df['REVENUE_NATIVE'] * df['CONVERSION_RATE']
             df['RETAIL_PRICE_USD'] = df['RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
             df['UNIT_REVENUE_USD'] = df['UNIT_REVENUE_NATIVE'] * df['CONVERSION_RATE']
