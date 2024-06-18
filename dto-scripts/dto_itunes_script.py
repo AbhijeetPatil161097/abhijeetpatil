@@ -36,6 +36,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 file_name_month = _extract_date_from_file_key(file_key, partner)
 
                 df = _read_file_from_s3(bucket_name, file_key, file_extension)
+                df = df.dropna(subset = ['Title', 'Vendor Identifier'])
                 #df = df.rename(columns=rename_mapping)
 
                 if df is None:
