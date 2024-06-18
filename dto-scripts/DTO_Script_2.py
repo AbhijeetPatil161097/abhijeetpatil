@@ -264,9 +264,9 @@ def _collect_processed_metadata(bucket_name,
         
 
         
-def _remove_associated_files(partner_df, new_files_amazon, new_raw_metadata, partner):
+def _remove_associated_files(partner_df, new_files_df, new_raw_metadata, partner):
     try:
-        files_with_issue = new_files_amazon.merge(new_raw_metadata, 
+        files_with_issue = new_files_df.merge(new_raw_metadata, 
                                                   how='left',
                                                   on=['raw_file_path', 'months_in_data'],
                                                   indicator=True)
