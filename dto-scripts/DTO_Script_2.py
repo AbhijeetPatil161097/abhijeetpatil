@@ -327,7 +327,6 @@ def write_data_to_s3(df, bucket_name, file_key):
                 # Define file name and key
                 file_name = f"vendor_name={vendor_name}/year={year}/{year}-{month}.csv" 
                 file_key_name = f"{file_key}/{file_name}"
-                platform_name = vendor_name.capitalize()
                 
                 # Collect metadata for this file
                 transaction_date = f"{year}-{month:02d}"
@@ -336,7 +335,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                     'processed_date': datetime.now().strftime('%Y-%m-%d'),
                     'processed_file_path': f"s3://{bucket_name}/{file_key_name}",
                     'months_in_data': transaction_date,
-                    'platform': platform_name
+                    'platform': vendor_name
                 })
                 try:
                     if vendor_name == 'amazon':
@@ -346,7 +345,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                     ],
                             'processed_date': datetime.now().strftime('%Y-%m-%d'),
                             'months_in_data': transaction_date,
-                            'platform': platform_name
+                            'platform': vendor_name
                         })
                     elif vendor_name == 'itunes':
                         try:
@@ -356,7 +355,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                         ],
                                 'processed_date': datetime.now().strftime('%Y-%m-%d'),
                                 'months_in_data': transaction_date,
-                                'platform': platform_name,
+                                'platform': vendor_name,
                             })
                         except:
                             logging.error(f"An error occurred while writing itunes metric data to S3: {e}")
@@ -367,7 +366,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                     ],
                             'processed_date': datetime.now().strftime('%Y-%m-%d'),
                             'months_in_data': transaction_date,
-                            'platform': platform_name
+                            'platform': vendor_name
                         })
 
                 except Exception as e:
