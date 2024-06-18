@@ -100,7 +100,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
         return df_itunes_filtered
         
     except Exception as e:
-        logging.error(f"An error occurred while reading Amazon data: {e}")
+        logging.error(f"An error occurred while reading Itunes data: {e}")
         return pd.DataFrame()
 
 
