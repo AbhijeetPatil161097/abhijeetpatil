@@ -42,21 +42,14 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                 logging.error(f"Amazon file is empty or could not be read: {file_key}")
                 continue
             file_name_month = _extract_date_from_file_key(file_key, partner)
-            logging.info(f"step 1 complete")
             df['TRANSACTION_DATE'] = file_name_month
-            logging.info(f"step 2 complete")
             unique_months = ','.join(df['TRANSACTION_DATE'].unique())
-            logging.info(f"step 3 complete")
             file_info = s3.info(f"{bucket_name}/{file_key}")
-            logging.info(f"step 4 complete")
             file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-            logging.info(f"step 5 complete")
             file_row_count = len(df)
-            logging.info(f"step 6 complete")
             metrics= ['QUANTITY (Quantity)', 'REVENUE_NATIVE (Cost)']
             raw_file_values = [df['Quantity'].astype('float').sum(), 
                                df['Cost'].astype('float').sum()]
-            logging.info(f"step 1 complete")
             _collect_file_metadata(bucket_name, 
                                    file_key, 
                                    file_name, 
@@ -66,7 +59,6 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                                    unique_months,
                                    file_row_count
                                   )
-            logging.info(f"step 7 complete")
             _collect_metric_metadata(bucket_name,
                                      file_key, 
                                      file_name, 
@@ -74,7 +66,6 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
                                      unique_months, metrics= metrics, 
                                      raw_file_values = raw_file_values
                                     )
-            logging.info(f"step 8 complete")
             df_list_amazon.append(df)
             
             logging.info(f"Processing completed for file: {file_key}")
