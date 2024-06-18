@@ -425,33 +425,35 @@ def get_last_reporting_start_date_rows(df):
 
 def map_conversion_rates(month_end_currency_data, final_df):
     """
-    Maps conversion rates to transformed data (Amazon, iTunes, Google).
+    Function:
+        * Maps conversion rates to all transformed data. ( Amazon + iTunes + Google)
     
     Parameters:
-        month_end_currency_data: DataFrame with month-end currency data.
-        final_df: DataFrame with transformed partner data.
+        * month_end_currency_data: Month end data from function get_last_reporting_start_date_rows.
+        * final_df: All transformed partner data of ( Amazon + iTunes + Google)
     
     Returns:
-        DataFrame with updated conversion rates.
+        * Dataframe of all transformed partner data with newly mapped conversion rates.
     """
     try:
-        # Create a conversion map from the month-end data
-        conversion_map = {
-            (date, country): rate
-            for date, country, rate in zip(
-                month_end_currency_data['REPORTING_START_DATE'], 
-                month_end_currency_data['COUNTRY_CODE'], 
-                month_end_currency_data['CONVERSION_RATE']
-            )
-        }
-    
-        # Apply conversion rates to rows where IS_CONVERSION_RATE is False
-        final_df.loc[~final_df['IS_CONVERSION_RATE'], 'CONVERSION_RATE'] = final_df[~final_df['IS_CONVERSION_RATE']].apply(
-            lambda row: conversion_map.get(
-                (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY']), None), axis=1)
+        # Create a dictionary for quick lookup of conversion rates
+        conversion_map = {(date, country): conversion_rate for date, country, conversion_rate in zip(
+            month_end_currency_data['REPORTING_START_DATE'], 
+            month_end_currency_data['COUNTRY_CODE'], 
+            month_end_currency_data['CONVERSION_RATE']
+        )}
+        
+        # Apply conversion rates only where IS_CONVERSION_RATE is False
+        def get_conversion_rate(row):
+            if not row['IS_CONVERSION_RATE']:
+                key = (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY'])
+                return conversion_map.get(key, None)
+            return row['CONVERSION_RATE']
+        
+        final_df['CONVERSION_RATE'] = final_df.apply(get_conversion_rate, axis=1)
+        
         logging.info("Conversion rates mapping is successful.")
         return final_df
-        logging.error(f"{final_df['CONVERSION_RATE'].tolist()}")
 
     except Exception as e:
         logging.error(f"An error occurred while mapping conversion rates: {e}")
@@ -473,18 +475,20 @@ def map_revenue_cost_usd(df):
     """
     try:
         # Apply conversion only if IS_CONVERSION_RATE is False
-        if not df['IS_CONVERSION_RATE'].all():
-            df.loc[~df['IS_CONVERSION_RATE'], 'REVENUE_USD'] = df['REVENUE_NATIVE'] * df['CONVERSION_RATE']
-            df.loc[~df['IS_CONVERSION_RATE'], 'RETAIL_PRICE_USD'] = df['RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
-            df.loc[~df['IS_CONVERSION_RATE'], 'UNIT_REVENUE_USD'] = df['UNIT_REVENUE_NATIVE'] * df['CONVERSION_RATE']
-            df.loc[~df['IS_CONVERSION_RATE'], 'UNIT_RETAIL_PRICE_USD'] = df['UNIT_RETAIL_PRICE_NATIVE'] * df['CONVERSION_RATE']
+        mask = ~df['IS_CONVERSION_RATE']
+        
+        if mask.any():
+            df.loc[mask, 'REVENUE_USD'] = df.loc[mask, 'REVENUE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
+            df.loc[mask, 'RETAIL_PRICE_USD'] = df.loc[mask, 'RETAIL_PRICE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
+            df.loc[mask, 'UNIT_REVENUE_USD'] = df.loc[mask, 'UNIT_REVENUE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
+            df.loc[mask, 'UNIT_RETAIL_PRICE_USD'] = df.loc[mask, 'UNIT_RETAIL_PRICE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
         
             logging.info("Revenue and Retail Price in USD mapping is successful.")
-            return df
         else:
-            logging.info("Revenue and Retail Price in USD not mapped.")
-            return df
+            logging.info("No conversion needed as all rows have IS_CONVERSION_RATE set to True.")
         
+        return df
+
     except Exception as e:
         logging.error(f"An error occurred while mapping revenue and cost in USD: {e}")
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
