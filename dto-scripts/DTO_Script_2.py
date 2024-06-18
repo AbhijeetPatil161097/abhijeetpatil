@@ -296,7 +296,7 @@ def _extract_date_from_file_key(file_key, partner):
         else:
             date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
         
-        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y%m%d')
+        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}")
                 if date_match else None).strftime('%Y-%m')
 
     if partner == 'google':
