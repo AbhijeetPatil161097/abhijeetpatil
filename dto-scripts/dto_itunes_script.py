@@ -42,23 +42,16 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 if df is None:
                     logging.error(f"Itunes file is empty or could not be read: {file_key}")
                     continue
-                logging.info(f"Step 1 Completed")
                 df['Start Date'] = pd.to_datetime(df['Start Date'], format = '%m/%d/%Y')
                 df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
-                logging.info(f"Step 2 Completed")
                 # Raise error if difference between Start Date and End Date is more  than 45 Days.
                 date_diff = (df['End Date'] - df['Start Date']).dt.days
-                logging.info(f"Step 3 Completed")
                 if (date_diff > 45).any():
                     logging.error("Start Date and End Date difference is more than 1 month.")
-
-                logging.info(f"Step 4 Completed")
                 df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
                 unique_months = ','.join(df['Start Date'].unique())
                 file_info = s3.info(f"{bucket_name}/{file_key}")
-                logging.info(f"Step 4.5 Completed")
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-                logging.info(f"Step 5 Completed")
                 file_row_count = len(df)
                 metrics= ['QUANTITY (Quantity)', 'REVENUE_NATIVE (Extended Partner Share)']
                 raw_file_values = [df['Quantity'].astype('int').sum(), 
@@ -74,7 +67,6 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                                        unique_months,
                                        file_row_count
                                       )
-                logging.info(f"Step 6 Completed")
                 _collect_metric_metadata(bucket_name,
                                          file_key, 
                                          file_name, 
@@ -85,7 +77,6 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
 
                 df_list_itunes.append(df)
                 logging.info(f"Processing completed for file: {file_key}")
-                logging.info(f"Step 7 Completed")
             except Exception as e:
                 logging.error(f"An error occurred while reading Itunes data: {e}")
 
@@ -100,7 +91,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 df_itunes_filtered[column] = None
         '''
 
-        logging.info("Amazon DataFrame created successfully")
+        logging.info("Itunes DataFrame created successfully")
         return df_itunes_filtered
         
     except Exception as e:
