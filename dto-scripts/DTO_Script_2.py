@@ -277,11 +277,11 @@ def _remove_associated_files(partner_df, new_files_amazon, new_raw_metadata, par
         months_in_data = files_with_issue['months_in_data'].tolist()
         logging.error(f"Files not processed for Amazon date: {files_with_issue['months_in_data'].unique().tolist()}")
         
-        if partner == 'Amazon'
+        if partner == 'amazon':
             return partner_df[~partner_df['TRANSACTION_DATE'].isin(months_in_data)]
-        elif partner == 'Itunes':
+        elif partner == 'itunes':
             return partner_df[~partner_df['Begin Date'].isin(months_in_data)]
-        elif partner == 'Google':
+        elif partner == 'google':
             return partner_df[~partner_df['Transaction Date'].isin(months_in_data)]
             
     except Exception as e:
