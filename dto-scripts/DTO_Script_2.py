@@ -643,13 +643,13 @@ try:
         currency_df = pd.read_csv(f, compression='gzip')
 
     month_end_currency_data = get_last_reporting_start_date_rows(currency_df)
-    
+    logging.error(f"DataFrame content:\n{month_end_currency_data.head().to_string()}")
     # Map conversion rates
     final_df = map_conversion_rates(month_end_currency_data, final_df)
-    
+    logging.error(f"DataFrame content:\n{final_df.head().to_string()}")
     # Map revenue and cost in USD
     final_df = map_revenue_cost_usd(final_df)
-    
+    logging.error(f"DataFrame content:\n{final_df.head().to_string()}")
     final_df = final_df.reindex(columns=[
         'PARTNER', 'VENDOR_ASSET_ID', 'TERRITORY', 'TRANSACTION_DATE', 'PARTNER_TITLE', 'TITLE', 
         'TRANSACTION_FORMAT', 'MEDIA_FORMAT', 'TRANSACTION_TYPE', 'PURCHASE_LOCATION', 'VIDEO_CATEGORY', 
@@ -693,10 +693,10 @@ try:
     
     # Raw metrics data
     raw_metrics_data = raw_metadata(metric_metadata)
-    logging.error(f"raw_metrics_data: {raw_metrics_data.head()}")
+    logging.error(f"DataFrame content:\n{raw_metrics_data.to_string()}")
     # create df of processed_metric
     processed_metrics_data = pd.DataFrame(metric_metadata_processed)
-    logging.error(f"processed_metrics_data: {processed_metrics_data.head()}")
+    logging.error(f"DataFrame content:\n{processed_metrics_data.to_string()}")
     
     # combine metrics metadata
     matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
