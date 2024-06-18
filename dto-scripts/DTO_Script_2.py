@@ -289,10 +289,10 @@ def _remove_associated_files(partner_df, new_files_amazon, new_raw_metadata, par
 
 
 def _extract_date_from_file_key(file_key, partner):
-    if partner == 'Amazon':
+    if partner == 'amazon':
         return '-'.join(file_key.split('_')[-1].split('-')[:2])
     
-    if partner == 'Itunes':
+    if partner == 'itunes':
         if file_key.endswith('.gz'):
             date_match = re.search(r'(\d{8})\.txt\.gz$|(\d{8})\.gz$', file_key)
         else:
@@ -301,7 +301,7 @@ def _extract_date_from_file_key(file_key, partner):
         return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y%m%d')
                 if date_match else None).strftime('%Y-%m')
 
-    if partner == 'Google':
+    if partner == 'google':
         return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')        
         
 
