@@ -335,7 +335,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                     'processed_date': datetime.now().strftime('%Y-%m-%d'),
                     'processed_file_path': f"s3://{bucket_name}/{file_key_name}",
                     'months_in_data': transaction_date,
-                    'platform': vendor_name
+                    'partner': vendor_name
                 })
                 try:
                     if vendor_name == 'amazon':
@@ -345,7 +345,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                     ],
                             'processed_date': datetime.now().strftime('%Y-%m-%d'),
                             'months_in_data': transaction_date,
-                            'platform': vendor_name
+                            'partner': vendor_name
                         })
                     elif vendor_name == 'itunes':
                         try:
@@ -355,7 +355,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                         ],
                                 'processed_date': datetime.now().strftime('%Y-%m-%d'),
                                 'months_in_data': transaction_date,
-                                'platform': vendor_name,
+                                'partner': vendor_name,
                             })
                         except:
                             logging.error(f"An error occurred while writing itunes metric data to S3: {e}")
@@ -366,7 +366,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                     ],
                             'processed_date': datetime.now().strftime('%Y-%m-%d'),
                             'months_in_data': transaction_date,
-                            'platform': vendor_name
+                            'partner': vendor_name
                         })
 
                 except Exception as e:
@@ -395,7 +395,7 @@ def concat_metadata(raw_metadata, processed_metadata):
         * DataFrame: Merged DataFrame containing combined information.
     """
     # Merge processed files DataFrame with metadata DataFrame based on transaction_date and platform
-    new_processed_metadata = raw_metadata.merge(processed_metadata, on=['months_in_data', 'platform'], how='left')
+    new_processed_metadata = raw_metadata.merge(processed_metadata, on=['months_in_data', 'partner'], how='left')
     
     return new_processed_metadata
 
