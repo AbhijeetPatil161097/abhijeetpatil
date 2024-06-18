@@ -167,7 +167,7 @@ def _filter_partner_files(files_to_process, partner):
     filtered_df =  files_to_process[files_to_process['partner'] == partner]
     return filtered_df
 
-def _read_file_from_s3(file_key, file_extension):
+def _read_file_from_s3(bucket_name, file_key, file_extension):
     try:
         file_path = f"s3://{bucket_name}/{file_key}"
         
