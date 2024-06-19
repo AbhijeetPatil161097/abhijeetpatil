@@ -1,4 +1,15 @@
 def read_data_from_s3_itunes(files_to_process, bucket_name):
+    """
+    Function:
+        * Reads iTunes files from S3 listed in the files_to_process and processes them into a DataFrame.
+    
+    Parameters:
+        * files_to_process: DataFrame of metadata of new files to process.
+        * bucket_name: S3 bucket name.
+    
+    Returns:
+        * DataFrame: Combined DataFrame containing data from all iTunes files.
+    """
     try:
         logging.info("Processing files for Itunes")
         partner='itunes'
@@ -142,7 +153,8 @@ class DtoDataProcessItunes:
         }
         
         self.df.rename(columns=self.column_rename_map, inplace=True)
- 
+        self.sales_return_mapping = {'S': 'SALES', 'R': 'RETURN'}
+        
         self.columns_to_drop = [
             'Provider', 'UPC', 'ISRC', 'Label/Studio/Network', 
             'Product Type Identifier', 'Customer Currency', 'PreOrder', 
@@ -153,7 +165,7 @@ class DtoDataProcessItunes:
         self.title_columns = ['Artist/Show/Developer/Author', 'Title']
         self.new_title_col = 'NEW_TITLE'
         self.new_partner_col = 'PARTNER_TITLE'
-        
+        self.sales_or_return = 'Sales or Return'
         self.unit_retail_price = 'Unit Retail Price Native'
         self.unit_revenue_col = 'Unit Revenue Native'
         self.revenue_col = 'Revenue Native'
@@ -169,10 +181,11 @@ class DtoDataProcessItunes:
             'Revenue Native': 'sum', 
             'Retail Price Native': 'sum', 
             #'ASSET/CONTENT FLAVOR': lambda x: '|'.join(sorted(pd.Series.unique(x))), # only available in sales data
+            'Sales or Return': lambda x: '|'.join(pd.Series.unique(x)),
             'PARTNER_TITLE': lambda x: '%%'.join(pd.Series.unique(x))
         }
 
-        
+        self.na_str_value = '_NA_'
         
     def drop_columns(self, columns_to_drop):
         '''Drop redundant columns from DataFrame'''
@@ -181,6 +194,7 @@ class DtoDataProcessItunes:
             self.df.drop(columns=existing_columns, inplace=True)
         except Exception as e:
             raise RuntimeError(f"Error dropping columns: {e}")
+    
     
     def new_title(self, row, title_columns):
         '''Create new title by merging and normalizing all title columns'''
@@ -205,6 +219,7 @@ class DtoDataProcessItunes:
         except KeyError as e:
             raise RuntimeError(f"Error processing title: {e}")
 
+            
     def process_new_title_and_drop_columns(self, title_columns, new_title_col, new_partner_col):
         '''Add new title and partner title in DataFrame and remove old title columns.'''
         try:
@@ -234,6 +249,22 @@ class DtoDataProcessItunes:
         except KeyError as e:
             raise KeyError(f"Error replacing titles - KeyError: {e}")
     
+    
+    def map_sales_return(self, sales_or_return):
+        '''
+        Function:
+            * Renames catagorical column values of column SALES_OR_RETURN.
+            * Map value _NA_ for null cells.
+        
+        '''
+        try:
+            self.df[sales_or_return] = self.df[sales_or_return].map(self.sales_return_mapping)
+            self.df[sales_or_return].fillna(self.na_str_value, inplace=True)
+        except Exception as e:
+            raise RuntimeError(f"Error mapping sales/return: {e}")
+
+    
+    
     def calculate_metric_values(self, unit_retail_price, retail_price, quantity_col):
         '''
             Calculate retail price by multiplying unit_retail_price to quantity
@@ -242,10 +273,13 @@ class DtoDataProcessItunes:
             
         '''
         try:
-            self.df[retail_price] = self.df[unit_retail_price] * self.df[quantity_col].abs()
+            self.df.loc[self.df[self.unit_retail_price] < 0, self.unit_retail_price] *= -1
+            
+            self.df[retail_price] = self.df[unit_retail_price] * self.df[quantity_col]
             
         except Exception as e:
             raise RuntimeError(f"Error calculating revenue: {e}")
+            
             
     def aggregate_data(self, groupby_columns, agg_columns):
         '''Aggregate data on on groupby_columns'''
@@ -253,6 +287,7 @@ class DtoDataProcessItunes:
             self.df = self.df.groupby(groupby_columns).agg(agg_columns).reset_index()
         except KeyError as e:
             raise RuntimeError(f"Error aggregating data: {e}")
+            
             
     def calculate_weigted_mean(self, unit_retail_price, retail_price, quantity_col, revenue_col, unit_revenue_col):
         '''Calculating weighted mean of unit_retail_price and unit_revenue'''
@@ -262,12 +297,14 @@ class DtoDataProcessItunes:
         except Exception as e:
             raise RuntimeError(f"Error calculating weighted mean: {e}")
     
+    
     def rename_columns(self):
         '''Rename column name by Capitalizing and replacing empty space by underscore.'''
         try:
             self.df.rename(columns=lambda x: x.upper().replace(' ', '_'), inplace=True)
         except Exception as e:
             raise RuntimeError(f"Error renaming columns: {e}")
+    
     
     def add_columns_to_df(self, vendor_name):
         '''
@@ -284,13 +321,14 @@ class DtoDataProcessItunes:
         except Exception as e:
             raise RuntimeError(f"Error adding vendor name column: {e}")
 
+            
     def process_data_source(self):
         '''Calling all function in specific order.'''
         try:
             self.drop_columns(self.columns_to_drop)
             self.process_new_title_and_drop_columns(self.title_columns, self.new_title_col, self.new_partner_col)
             self.replace_titles(self.territory_col, self.sku_col, self.new_title_col)
-            
+            self.map_sales_return(self.sales_or_return)
             self.calculate_metric_values(self.unit_retail_price, 
                                          self.retail_price, 
                                          self.quantity_col, 
