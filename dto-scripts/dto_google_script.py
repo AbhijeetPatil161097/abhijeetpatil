@@ -1,31 +1,52 @@
 def read_data_from_s3_google(files_to_process, bucket_name):
+    """
+    Function:
+        * Reads Google files from S3 listed in the files_to_process and processes them into a DataFrame.
+    
+    Parameters:
+        * files_to_process: DataFrame of metadata of new files to process.
+        * bucket_name: S3 bucket name of raw Google data.
+    
+    Returns:
+        * DataFrame: Combined DataFrame containing data from all Google files.
+    
+    """
     try:
         logging.info(f"Processing files for Google")
         partner = 'google'
-
+        
+        # Empty list to store Google DataFrames of each file.
         df_list_google = []
+        
+        # For each country, column names have currency in brackets. eg for (USD), (AUD) 
+        # To concat all country data, removing brackets from column names.
         pattern = re.compile(r'\s*\(.+')
-
+        
+        # Filter google files from files_to_process dataframe. ('_filter_partner_files' Function defined in DTO_Script_2.py)
         google_files_df = _filter_partner_files(files_to_process, partner)
         if google_files_df.empty:
             logging.error("No new Google files to process.")
             return pd.DataFrame()
-
+        
+        # Iterating each row to get s3 url of file.
         for index, row in google_files_df.iterrows():
             s3_url = row['raw_file_path']
             file_key = s3_url.split(f's3://{input_bucket_name}/')[1]
-
             logging.info(f"Processing started for file: {file_key}")
 
             file_name = os.path.basename(file_key)
             file_extension = os.path.splitext(file_key)[1]
-
+            
+            # Extract date from file name. ('_extract_date_from_file_key' - Function defined in DTO_Script_2.py)
             file_name_month = _extract_date_from_file_key(file_key, partner)
+            
+            # Read data  from raw file and create DataFrame. ('_read_file_from_s3' - Function defined in DTO_Script_2.py)
             df = _read_file_from_s3(bucket_name, file_key, file_extension)                          
             if df is None:
                 logging.error(f"Google file is empty: {file_key}")
                 continue
-                
+            
+            # As there are multiple redundant rows above actual header row, removing such rows.
             country_index = df.index[df['Per Transaction Report'] == 'Country'].tolist()[0]
             df = df.iloc[country_index:]
             df.columns = df.iloc[0]
@@ -38,16 +59,22 @@ def read_data_from_s3_google(files_to_process, bucket_name):
             df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
             df['QUANTITY'] = 1
             file_row_count = len(df)
+            
+            # Get unique months from DataFrame.
             unique_months = ','.join(df['Transaction Date'].unique())
             file_info = s3.info(f"{bucket_name}/{file_key}")
             file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
             file_row_count = len(df)
+            
+            # Get metric data for data processing and aggregation validation.
             metrics= ['QUANTITY (QUANTITY)',
                       'UNIT_REVENUE_NATIVE (Native Partner Earnings Using Tax Exclusive Retail Price)'
                      ]
             raw_file_values = [df['QUANTITY'].astype('int').sum(), 
                                df['Native Partner Earnings Using Tax Exclusive Retail Price'].astype('float').sum()
                               ]
+            
+            # Collect metadata of raw files. ('_collect_file_metadata' - Function defined in DTO_Script_2.py)
             _collect_file_metadata(bucket_name, 
                                     file_key, 
                                     file_name, 
@@ -57,6 +84,8 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                                     unique_months,
                                     file_row_count
                                     )
+            
+            # Collect metric data of raw files. ('_collect_metric_metadata' - Function defined in DTO_Script_2.py)
             _collect_metric_metadata(bucket_name,
                                      file_key, 
                                      file_name, 
@@ -65,13 +94,18 @@ def read_data_from_s3_google(files_to_process, bucket_name):
                                      raw_file_values = raw_file_values
                                     )
             
+            # Append DataFrame in list. ('df_list_google' - List defined in DTO_Script_2.py)
             df_list_google.append(df)
             logging.info(f"Processing completed for file: {file_key}")
-
+        
+        # Concat DataFrame
         df_google = pd.concat(df_list_google, ignore_index=True)
         raw_metadata = pd.DataFrame(new_raw_metadata)
+        
+        # Remove all files associated with partner and month of non processed files to prevent incomplete data processing.
+        # '_remove_associated_files' - Function defined in DTO_Script_2.py
         df_google_filtered = _remove_associated_files(df_google, google_files_df, raw_metadata, partner)
-
+        
         return df_google_filtered
                                      
     except Exception as e:
@@ -151,12 +185,14 @@ class DtoDataProcessGoogle:
         ]
         
     def convert_columns_to_float(self, columns):
+        '''Convert numeric columns to float'''
         for column in columns:
             if column in self.df.columns:
                 self.df[column] = self.df[column].astype(float)
         
         
     def drop_columns(self, columns_to_drop):
+        '''Drop redundant columns from DataFrame'''
         try:
             existing_columns = [col for col in columns_to_drop if col in self.df.columns]
             self.df.drop(columns=existing_columns, inplace=True)
@@ -165,6 +201,7 @@ class DtoDataProcessGoogle:
 
     
     def new_title(self, row, title_columns):
+        '''Create new title by merging and normalizing all title columns'''
         try:
             channel_name = str(row[title_columns[0]]).replace('"', '').strip()
             series_title = str(row[title_columns[1]]).replace('"', '').strip()
@@ -189,6 +226,7 @@ class DtoDataProcessGoogle:
             raise RuntimeError(f"Error processing title: {e}")
     
     def new_partner_title(self, row, title_columns):
+        '''Create partner title using (||) as a seperator.'''
         try:
             titles = [str(row[col]).replace('"', '').strip() for col in title_columns]
             return ' || '.join(titles)
@@ -196,6 +234,7 @@ class DtoDataProcessGoogle:
             raise RuntimeError(f"Error processing title: {e}")
 
     def process_new_title_and_drop_columns(self, title_columns, new_title_col, new_partner_col):
+        '''Add new title and partner title in DataFrame and remove old title columns.'''
         try:
             self.df[new_title_col] = self.df.apply(lambda row: self.new_title(row, title_columns), axis=1)
             self.df[new_partner_col] = self.df.apply(lambda row: self.new_partner_title(row, title_columns), axis=1)
@@ -205,6 +244,7 @@ class DtoDataProcessGoogle:
             raise RuntimeError(f"Error dropping old title columns: {e}")
 
     def replace_titles(self, territory_col, sku_col, new_title_col):
+        '''By matching YouTube Video ID, replace all non english titles by US titles.'''
         try:
             mask = (self.df[territory_col] == 'US') & (self.df[sku_col] != np.nan)
             filtered_data = self.df[mask]
@@ -222,24 +262,34 @@ class DtoDataProcessGoogle:
     
     
     def calculate_metric_values(self, quantity_col):
+        '''
+            Calculate Retail Price and Revenue by multiplying with quantity.
+            
+        '''
         try:
-            self.df[self.revenue_native] = self.df[self.unit_revenue_native] * self.df[self.quantity_col].abs()
-            self.df[self.retail_price_native] = self.df[self.unit_retail_price_native] * self.df[self.quantity_col].abs()
-            self.df[self.revenue_usd] = self.df[self.unit_revenue_usd] * self.df[self.quantity_col].abs()
-            self.df[self.retail_price_usd] = self.df[self.unit_retail_price_usd] * self.df[self.quantity_col].abs()
+            # Multiplying unit_revenue_native and unit_revenue_usd with -1 where they are negative.
+            self.df.loc[self.df[self.unit_revenue_native] < 0, self.unit_revenue_native] *= -1
+            self.df.loc[self.df[self.unit_revenue_usd] < 0, self.unit_revenue_usd] *= -1
+            
+            self.df[self.retail_price_usd] = self.df[self.unit_retail_price_usd] * self.df[self.quantity_col]
+            self.df[self.retail_price_native] = self.df[self.unit_retail_price_native] * self.df[self.quantity_col]
+            self.df[self.revenue_native] = self.df[self.unit_revenue_native] * self.df[self.quantity_col]
+            self.df[self.revenue_usd] = self.df[self.unit_revenue_usd] * self.df[self.quantity_col]
+            
         except KeyError as e:
             raise KeyError(f"Error calculating metric values: {e}")
     
             
     def aggregate_data(self, groupby_columns, agg_columns):
+        '''Aggregate data on groupby_columns'''
         try:
             self.df = self.df.groupby(groupby_columns).agg(agg_columns).reset_index()
         except KeyError as e:
             raise RuntimeError(f"Error aggregating data: {e}")
             
-            
         
     def calculate_weigted_mean(self, quantity_col):
+        '''Calculating weighted mean of unit_retail_price and unit_revenue'''
         try:
             self.df[self.unit_retail_price_native] = self.df[self.retail_price_native] / self.df[quantity_col]
             self.df[self.unit_retail_price_usd] = self.df[self.retail_price_usd]  / self.df[quantity_col]
@@ -249,14 +299,19 @@ class DtoDataProcessGoogle:
             raise RuntimeError(f"Error calculating revenue: {e}")
     
     
-    
     def rename_columns(self):
+        '''Rename column name by Capitalizing and replacing empty space by underscore.'''
         try:
             self.df.rename(columns=lambda x: x.upper().replace(' ', '_'), inplace=True)
         except Exception as e:
             raise RuntimeError(f"Error renaming columns: {e}")
     
     def add_columns_to_df(self, vendor_name):
+        '''
+            Add necessary columns in DataFrame.
+            * Adding PARTNER column to distinguish data after merging with other partners.
+            * Adding IS_CONVERSION_RATE = False, as conversion rate is not present in raw data.
+        '''
         try:
             self.df.insert(0, 'PARTNER', vendor_name)
             self.df['IS_CONVERSION_RATE'] = True
@@ -266,6 +321,7 @@ class DtoDataProcessGoogle:
 
             
     def process_data_source(self):
+        '''Calling all function in specific order.'''
         try:
             self.convert_columns_to_float(self.numeric_columns)
             self.drop_columns(self.columns_to_drop)
