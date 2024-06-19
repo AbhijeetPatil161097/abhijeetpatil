@@ -33,6 +33,7 @@ def read_data_from_s3_amazon(files_to_process, bucket_name):
         if amazon_files_df.empty:
             logging.error("No new Amazon files to process.")
             return pd.DataFrame()
+            break
         
         # Iterating each row to get s3 url of file.
         for index, row in amazon_files_df.iterrows():
