@@ -26,10 +26,12 @@ log_file_bucket_name = 'cdr-research'
 log_file_key = 'Projects/DTO/Misc/glue_job_log.txt'
 
 script_bucket_name = 'cdr-research'
-script_file_key_amazon = 'Projects/DTO/dto-scripts/dto_amazon_script.py'
-script_file_key_itunes = 'Projects/DTO/dto-scripts/dto_itunes_script.py'
-script_file_key_google = 'Projects/DTO/dto-scripts/dto_google_script.py'
-integration_script_key = 'Projects/DTO/dto-scripts/dto_integration_script.py'
+script_keys = [
+    'Projects/DTO/dto-scripts/dto_amazon_script.py',
+    'Projects/DTO/dto-scripts/dto_itunes_script.py',
+    'Projects/DTO/dto-scripts/dto_google_script.py',
+    'Projects/DTO/dto-scripts/dto_integration_script.py'
+]
 
 input_bucket_name = 'azv-s3str-pmsa1'
 output_bucket_name = 'cdr-research'
@@ -50,11 +52,8 @@ processed_metadata_file_key = 'Projects/DTO/Metadata/processed_metadata.csv'
 
 # Create empty lists to store metadata
 new_raw_metadata = []
-
 new_processed_metadata_all = []
-
 metric_metadata = []
-
 metric_metadata_processed = []
 
 
@@ -69,11 +68,10 @@ def initialize_logging(log_file_path):
     
     """
     try:
-        logging.basicConfig(
-            level=logging.INFO, 
-            format='%(asctime)s - %(levelname)s - %(message)s', 
-            filename=log_file_path
-        )
+        logging.basicConfig(level=logging.INFO, 
+                            format='%(asctime)s - %(levelname)s - %(message)s', 
+                            filename=log_file_path
+                           )
         return True
     except Exception as e:
         print(f"An error occurred while initializing logging: {e}")
@@ -162,10 +160,33 @@ def read_script_from_s3(bucket_name, file_key):
         
         
 def _filter_partner_files(files_to_process, partner):
+    """
+    Function:
+        * Filters files_to_process dataframe based on partner name.
+    
+    Parameters:
+        * files_to_process: Dataframe of files to process.
+        
+    Returns:
+        * Filtered DataFrame based on partner name.
+    """
     filtered_df =  files_to_process[files_to_process['partner'] == partner]
     return filtered_df
 
 def _read_file_from_s3(bucket_name, file_key, file_extension):
+    """
+    Function:
+        * Read files with different file extension.
+    
+    Parameters:
+        * bucket_name: Bucket name of input data.
+        * File Key: File key prefix for file.
+        * file_extension: extension of given file.
+        
+    Returns:
+        * Dataframe of raw file data.
+    
+    """
     try:
         file_path = f"s3://{bucket_name}/{file_key}"
         
@@ -184,7 +205,6 @@ def _read_file_from_s3(bucket_name, file_key, file_extension):
             raise ValueError(f"Unsupported file format: {file_path}{file_extension}")
     except Exception as e:
         logging.error(f"An error occurred while reading file from S3: {e}")
-        return None
 
     
 def _collect_file_metadata(bucket_name, 
@@ -196,6 +216,11 @@ def _collect_file_metadata(bucket_name,
                            unique_months,
                            file_row_count
                           ):
+    """
+    Function:
+        * Collects Metadata of file and appends it in list new_raw_metadata.
+    
+    """
     try:
         new_raw_metadata.append({
             'raw_file_path': f"s3://{bucket_name}/{file_key}", 
@@ -219,7 +244,11 @@ def _collect_metric_metadata(bucket_name,
                              metrics=None, 
                              raw_file_values=None
                             ):
-    """Collects metadata for metric validation."""
+    """
+    Function:
+        * Collects metadata for metric validation and appends in list metric_metadata.
+    
+    """
     try:
         metadata = {
             'raw_file_path': f"s3://{bucket_name}/{file_key}", 
@@ -249,6 +278,11 @@ def _collect_processed_metadata(bucket_name,
                            unique_months,
                            file_row_count
                           ):
+    """
+        Function:
+            * Collects Metadata of processed file and appends it in list new_raw_metadata.
+    
+    """
     try:
         new_raw_metadata.append({
             'raw_file_path': f"s3://{bucket_name}/{file_key}", 
@@ -267,6 +301,20 @@ def _collect_processed_metadata(bucket_name,
 
         
 def _remove_associated_files(partner_df, new_files_df, new_raw_metadata, partner):
+    """
+    Function:
+        * Removes all data asssociated with same partner and month of any unprocessed file to prevent 
+        processing incomplete data
+        
+    Parameters:
+        * partner_df : DataFrame of partner raw files.
+        * new_files_df: filtered DataFrame of files to process on partner.
+        * new_raw_metadata : DataFrame of metadata of current iteration raw files.
+        * parrtner: name of partner in string.
+    
+    Returns:
+        * DataFrame after removing all associated files.
+    """
     try:
         files_with_issue = new_files_df.merge(new_raw_metadata, 
                                                   how='left',
@@ -289,6 +337,14 @@ def _remove_associated_files(partner_df, new_files_df, new_raw_metadata, partner
 
 
 def _extract_date_from_file_key(file_key, partner):
+    """
+    Function:
+        * Extracts date from file key.
+        
+    Returns:
+        * Date in yyyy-mm format.
+    
+    """
     if partner == 'amazon':
         return '-'.join(file_key.split('_')[-1].split('-')[:2])
     
@@ -580,17 +636,10 @@ def append_metadata_to_csv(new_processed_metadata, bucket_name, file_key):
     
     
 try:
-    # Read the Python scripts and integration script from S3
-    script_content_amazon = read_script_from_s3(script_bucket_name, script_file_key_amazon)
-    script_content_itunes = read_script_from_s3(script_bucket_name, script_file_key_itunes)
-    script_content_google = read_script_from_s3(script_bucket_name, script_file_key_google)
-    integration_script_content = read_script_from_s3(script_bucket_name, integration_script_key)
-
-    # Execute the Python scripts
-    exec(script_content_amazon)
-    exec(script_content_itunes)
-    exec(script_content_google)
-    exec(integration_script_content)
+    # Load and execute all Data Processing Scripts
+    for key in script_keys:
+        script_content = read_script_from_s3(script_bucket_name, key)
+        exec(script_content)
     
     # read new files to process
     files_to_process = read_new_files(new_files_bucket_name, new_files_file_key)
