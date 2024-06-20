@@ -672,7 +672,8 @@ def log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all):
     Parameters:
         * new_raw_metadata: Metadata of raw files.
         * new_processed_metadata_all: Metadata of processed files
-    
+    Returns:
+        Filtered metadata Dataframe.
     """
     # Get metadata from current iteration
     new_raw_metadata_df = raw_metadata(new_raw_metadata)
@@ -693,7 +694,7 @@ def log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all):
     # Log file names to log file
     file_names = files_not_processed['raw_file_path'].tolist()
     logging.info(f'List of all files which have null metadata: {file_names}')
-
+    return combined_processed_metadata_filtered
 
 def process_and_append_metrics_metadata(metric_metadata, metric_metadata_processed, metric_bucket_name, metric_file_key):
     """
@@ -807,7 +808,7 @@ try:
         raise RuntimeError("Failed to Write Data.") from e
     
     # Log file names which are read  but not processed properly
-    log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all)
+    combined_processed_metadata_filtered = log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all)
 
     # Put metadata file in s3
     append_metadata_to_csv(combined_processed_metadata_filtered, processed_metadata_bucket, processed_metadata_file_key)
