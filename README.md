@@ -36,7 +36,7 @@ To automate the process of data mining, data processing, and data loading to min
 ## 🏗️ Architecture
 This Glue job orchestrates the entire ETL process:
 ETL Pipeline have 2 Glue Jobs.
-**1. Glue job Name: DTO_Script_1**
+**1. Glue job Name: DTO_Script_1** 
 **2. Glue job Name: DTO_Script_2**
 
 **1. Glue job Name: DTO_Script_1**
