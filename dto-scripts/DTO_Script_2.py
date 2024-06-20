@@ -552,6 +552,36 @@ def map_revenue_cost_usd(df):
         raise RuntimeError("Failed to map revenue and cost in USD.") from e
 
         
+# Function to load currency data from S3, map conversion rates, and map revenue and cost in USD
+def process_currency_and_mapping(currency_bucket_name, currency_file_key, final_df):
+    """
+    Function:
+        * Load currency rates and map in dataframe.
+        * Map revenue and retail price in USD in dataframe
+    Parameters:
+        * currency_bucket_name: Bucket name of currency file
+        * currency_file_key: File prefix of currency file
+        * final_df: Dataframe
+    Returns:
+        * Dataframe after mapping currency data.
+    
+    """
+    # Load currency data from S3
+    s3_currency = s3fs.S3FileSystem()
+    with s3_currency.open(f'{currency_bucket_name}/{currency_file_key}', 'rb') as f:
+        currency_df = pd.read_csv(f, compression='gzip')
+
+    # Assuming this function retrieves rows for the last reporting start date
+    month_end_currency_data = get_last_reporting_start_date_rows(currency_df)
+    
+    # Map conversion rates
+    final_df = map_conversion_rates(month_end_currency_data, final_df)
+    
+    # Map revenue and cost in USD
+    final_df = map_revenue_cost_usd(final_df)
+    
+    return final_df
+        
 
 def raw_metadata(raw_metadata):
     """
@@ -634,6 +664,72 @@ def append_metadata_to_csv(new_processed_metadata, bucket_name, file_key):
     except Exception as e:
         logging.error(f"An error occurred while uploading metadata: {e}")
     
+
+def log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all):
+    """
+    Function:
+        * Log file names of files not properly processed.
+    Parameters:
+        * new_raw_metadata: Metadata of raw files.
+        * new_processed_metadata_all: Metadata of processed files
+    
+    """
+    # Get metadata from current iteration
+    new_raw_metadata_df = raw_metadata(new_raw_metadata)
+    
+    # Get metadata after completion of data transformation
+    new_processed_metadata_all = pd.DataFrame(new_processed_metadata_all)
+    
+    # Concatenate new_raw_metadata_df and new_processed_metadata_all
+    combined_processed_metadata = concat_metadata(new_raw_metadata_df, new_processed_metadata_all)
+    
+    # Drop rows with any null values
+    combined_processed_metadata_filtered = combined_processed_metadata.dropna(how='any')
+    
+    # Get all files with null metadata
+    files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]) \
+                            .drop_duplicates(keep=False)
+    
+    # Log file names to log file
+    file_names = files_not_processed['raw_file_path'].tolist()
+    logging.info(f'List of all files which have null metadata: {file_names}')
+
+
+def process_and_append_metrics_metadata(metric_metadata, metric_metadata_processed, metric_bucket_name, metric_file_key):
+    """
+    Function:
+        * Filters and appends metric metadata to s3.
+    Parameters:
+        * metric_metadata: Metric metadata of raw files.
+        * metric_metadata_processed : Metric metadata of processed files.
+        * metric_bucket_name: File bucket name.
+        * metric_file_key: File prefix key.
+
+    """
+    # Raw metrics data
+    raw_metrics_data = raw_metadata(metric_metadata)
+    
+    # Create DataFrame of processed metrics
+    processed_metrics_data = pd.DataFrame(metric_metadata_processed)
+    
+    # Combine metrics metadata
+    metrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
+    metrics_metadata = metrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
+    
+    # Drop rows with any null values
+    metrics_metadata_filtered = metrics_metadata.dropna(how='any')
+    dropped_rows = metrics_metadata[~metrics_metadata.index.isin(metrics_metadata_filtered.index)]
+    
+    # Log dropped rows
+    if not dropped_rows.empty:
+        logging.info(f"Dropped rows due to null values:\n{dropped_rows}")
+    
+    # Append metric metadata to S3
+    append_metadata_to_csv(metrics_metadata_filtered, metric_bucket_name, metric_file_key)
+
+    # Log success message
+    logging.info(f"Metrics metadata successfully appended to S3 bucket: {metric_bucket_name}/{metric_file_key}")
+    
     
 try:
     # Load and execute all Data Processing Scripts
@@ -645,6 +741,7 @@ try:
     files_to_process = read_new_files(new_files_bucket_name, new_files_file_key)
                                                 
     # Read and process data (if no data to process return empty dataframe)
+    # Read data scripts are defined in each partner data processing script.
     try:
         df_amazon = read_data_from_s3_amazon(files_to_process, input_bucket_name)
         amazon_monthly_data = DtoDataProcessAmazon('Amazon', df_amazon)
@@ -690,17 +787,8 @@ try:
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
         raise RuntimeError("Failed to Merge Datasets.") from e
 
-    # Load currency data from S3 and integrate it into final_df
-    s3_currency = s3fs.S3FileSystem()
-    with s3_currency.open(f'{currency_bucket_name}/{currency_file_key}', 'rb') as f:
-        currency_df = pd.read_csv(f, compression='gzip')
-
-    month_end_currency_data = get_last_reporting_start_date_rows(currency_df)
-    # Map conversion rates
-    final_df = map_conversion_rates(month_end_currency_data, final_df)
-    
-    # Map revenue and cost in USD
-    final_df = map_revenue_cost_usd(final_df)
+    # Load currency data from S3 and map in final_df
+    final_df = process_currency_and_mapping(currency_bucket_name, currency_file_key, final_df)
     
     final_df = final_df.reindex(columns=[
         'PARTNER', 'VENDOR_ASSET_ID', 'TERRITORY', 'TRANSACTION_DATE', 'PARTNER_TITLE', 'TITLE', 
@@ -709,6 +797,7 @@ try:
         'RETAIL_PRICE_USD', 'UNIT_REVENUE_NATIVE', 'UNIT_REVENUE_USD', 'REVENUE_NATIVE', 'REVENUE_USD', 'CONVERSION_RATE',
         'IS_CONVERSION_RATE'
     ])
+    
     # Write Transformed Data to S3 with partitions
     try:
         write_data_to_s3(final_df, output_bucket_name, output_folder_key)
@@ -717,42 +806,14 @@ try:
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
         raise RuntimeError("Failed to Write Data.") from e
     
-    
-    # Get metadata from current iteration
-    new_raw_metadata_df = raw_metadata(new_raw_metadata)
-    
-    # Get metadata after completion of data transformation
-    new_processed_metadata_all = pd.DataFrame(new_processed_metadata_all)
-    
-    # Concat new_raw_metadata_df and new_processed_metadata_all
-    combined_processed_metadata = concat_metadata(new_raw_metadata_df, new_processed_metadata_all)
-    
-    # Drop rows with any null values
-    combined_processed_metadata_filtered = combined_processed_metadata.dropna(how='any')
-    
-    # Get all files with null metadata
-    files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]) \
-                            .drop_duplicates(keep=False)
-    # Log file names to log file
-    file_names = files_not_processed['raw_file_path'].tolist()
-    logging.info(f'List of all files which have null metadata: {file_names}')
-    
+    # Log file names which are read  but not processed properly
+    log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all)
 
     # Put metadata file in s3
     append_metadata_to_csv(combined_processed_metadata_filtered, processed_metadata_bucket, processed_metadata_file_key)
     
-    # Raw metrics data
-    raw_metrics_data = raw_metadata(metric_metadata)
-    # create df of processed_metric
-    processed_metrics_data = pd.DataFrame(metric_metadata_processed)
-    
-    # combine metrics metadata
-    matrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
-    matrics_metadata = matrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
-    matrics_metadata_filtered = matrics_metadata.dropna(how='any')
-    
-    # append metric metadata to s3
-    append_metadata_to_csv(matrics_metadata_filtered, metric_bucket_name, metric_file_key)
+    # Process and append metrics data
+    process_and_append_metrics_metadata(metric_metadata, metric_metadata_processed, metric_bucket_name, metric_file_key)
     
 except Exception as e:
     logging.error(f"An error occurred in the main script: {e}")
