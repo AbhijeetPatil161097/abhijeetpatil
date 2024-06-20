@@ -236,7 +236,12 @@ class DtoDataProcessAmazon:
     def aggregate_data(self, groupby_columns, agg_columns):
         '''Aggregate data on on groupby_columns'''
         try:
-            self.df = self.df.groupby(groupby_columns).agg(agg_columns).reset_index()
+            null_sku = self.df[self.df[self.sku_col].isna()]
+            non_null_sku = self.df[~self.df[self.sku_col].isna()]
+            
+            aggregated_df = non_null_sku.groupby(groupby_columns).agg(agg_columns).reset_index()
+            self.df = pd.concat([aggregated_df, null_sku])
+            return self.df
         except KeyError as e:
             raise RuntimeError(f"Error aggregating data: {e}")
             
