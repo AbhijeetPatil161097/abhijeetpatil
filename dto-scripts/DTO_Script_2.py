@@ -365,7 +365,7 @@ def _extract_date_from_file_key(file_key, partner):
 def write_data_to_s3(df, bucket_name, file_key):
     """
     Function:
-        * Writes processed data to S3 bucket in VENDOR_NAME > YEAR > MONTH format.
+        * Writes processed data to S3 bucket in PARTNER > YEAR > MONTH format.
         * Appends processed metadata into list
     
     Parameters:
@@ -377,13 +377,13 @@ def write_data_to_s3(df, bucket_name, file_key):
 
     enable_overwrite = False
     try:
-        for vendor_name, group in df.groupby('PARTNER'):
+        for partner, group in df.groupby('PARTNER'):
             for (year, month), data in group.groupby([
                 pd.to_datetime(group['TRANSACTION_DATE']).dt.year,
                 pd.to_datetime(group['TRANSACTION_DATE']).dt.month
             ]):
                 # Define file name and key
-                file_name = f"vendor_name={vendor_name}/year={year}/{year}-{month}.csv" 
+                file_name = f"partner={partner}/year={year}/{year}-{month}.csv" 
                 file_key_name = f"{file_key}/{file_name}"
                 
                 # Collect metadata for this file
@@ -393,19 +393,19 @@ def write_data_to_s3(df, bucket_name, file_key):
                     'processed_date': datetime.now().strftime('%Y-%m-%d'),
                     'processed_file_path': f"s3://{bucket_name}/{file_key_name}",
                     'months_in_data': transaction_date,
-                    'partner': vendor_name
+                    'partner': partner
                 })
                 try:
-                    if vendor_name == 'amazon':
+                    if partner == 'amazon':
                         metric_metadata_processed.append({
                             'processed_file_value': [data['QUANTITY'].sum(), 
                                                      data['REVENUE_NATIVE'].sum()
                                                     ],
                             'processed_date': datetime.now().strftime('%Y-%m-%d'),
                             'months_in_data': transaction_date,
-                            'partner': vendor_name
+                            'partner': partner
                         })
-                    elif vendor_name == 'itunes':
+                    elif partner == 'itunes':
                         try:
                             metric_metadata_processed.append({
                                 'processed_file_value': [data['QUANTITY'].sum(),
@@ -413,18 +413,18 @@ def write_data_to_s3(df, bucket_name, file_key):
                                                         ],
                                 'processed_date': datetime.now().strftime('%Y-%m-%d'),
                                 'months_in_data': transaction_date,
-                                'partner': vendor_name,
+                                'partner': partner,
                             })
                         except:
                             logging.error(f"An error occurred while writing itunes metric data to S3: {e}")
-                    elif vendor_name == 'google':
+                    elif partner == 'google':
                         metric_metadata_processed.append({
                             'processed_file_value': [data['QUANTITY'].sum(),
                                                      data['REVENUE_NATIVE'].sum()
                                                     ],
                             'processed_date': datetime.now().strftime('%Y-%m-%d'),
                             'months_in_data': transaction_date,
-                            'partner': vendor_name
+                            'partner': partner
                         })
 
                 except Exception as e:
