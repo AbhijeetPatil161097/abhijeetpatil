@@ -267,14 +267,10 @@ class DtoDataProcessGoogle:
             
         '''
         try:
-            # Multiplying unit_revenue_native and unit_revenue_usd with -1 where they are negative.
-            self.df.loc[self.df[self.unit_revenue_native] < 0, self.unit_revenue_native] *= -1
-            self.df.loc[self.df[self.unit_revenue_usd] < 0, self.unit_revenue_usd] *= -1
-            
             self.df[self.retail_price_usd] = self.df[self.unit_retail_price_usd] * self.df[self.quantity_col]
             self.df[self.retail_price_native] = self.df[self.unit_retail_price_native] * self.df[self.quantity_col]
-            self.df[self.revenue_native] = self.df[self.unit_revenue_native] * self.df[self.quantity_col]
-            self.df[self.revenue_usd] = self.df[self.unit_revenue_usd] * self.df[self.quantity_col]
+            self.df[self.revenue_native] = self.df[self.unit_revenue_native] * self.df[self.quantity_col].abs()
+            self.df[self.revenue_usd] = self.df[self.unit_revenue_usd] * self.df[self.quantity_col].abs()
             
         except KeyError as e:
             raise KeyError(f"Error calculating metric values: {e}")
