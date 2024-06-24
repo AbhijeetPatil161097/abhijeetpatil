@@ -724,7 +724,7 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
     
     # Round the sum and mean values
     metrics_metadata['raw_file_value_grouped'] = metrics_metadata['raw_file_value_grouped'].astype(float).round()
-    metrics_metadata['processed_file_value_mean'] = metrics_metadata['processed_file_value_mean'].astype(float).round()
+    metrics_metadata['processed_file_value_grouped'] = metrics_metadata['processed_file_value_grouped'].astype(float).round()
     
     # Perform validation
     metrics_metadata['validation'] = metrics_metadata['raw_file_value_grouped'] == metrics_metadata['processed_file_value_grouped']
