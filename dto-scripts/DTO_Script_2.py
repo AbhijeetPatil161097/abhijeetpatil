@@ -718,7 +718,8 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
     metrics_metadata = metrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
 
     # Add validation column
-    # Merge aggregated results back to the original DataFrame
+    grouped = df.groupby(['partner', 'months_in_data', 'metric']).agg({'raw_file_value': 'sum', 'processed_file_value': 'mean'}) \
+                                                                 .reset_index()
     metrics_metadata = pd.merge(metrics_metadata, grouped, on=['partner', 'months_in_data', 'metric'], suffixes=('', '_grouped'))
     
     # Round the sum and mean values
