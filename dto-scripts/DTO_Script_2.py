@@ -716,7 +716,21 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
     # Combine metrics metadata
     metrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
     metrics_metadata = metrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
+
+    # Add validation column
+    # Merge aggregated results back to the original DataFrame
+    metrics_metadata = pd.merge(metrics_metadata, grouped, on=['partner', 'months_in_data', 'metric'], suffixes=('', '_grouped'))
     
+    # Round the sum and mean values
+    metrics_metadata['raw_file_value_grouped'] = metrics_metadata['raw_file_value_grouped'].round()
+    metrics_metadata['processed_file_value_grouped'] = metrics_metadata['processed_file_value_grouped'].round()
+    
+    # Perform validation
+    metrics_metadata['validation'] = metrics_metadata['raw_file_value_grouped'] == metrics_metadata['processed_file_value_grouped']
+    
+    # Drop intermediate columns except for the validation column
+    metrics_metadata.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
+        
     # Drop rows with any null values
     metrics_metadata_filtered = metrics_metadata.dropna(how='any')
     dropped_rows = metrics_metadata[~metrics_metadata.index.isin(metrics_metadata_filtered.index)]
