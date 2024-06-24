@@ -239,6 +239,9 @@ class DtoDataProcessAmazon:
             null_sku = self.df[self.df[self.sku_col].isna()]
             non_null_sku = self.df[~self.df[self.sku_col].isna()]
             
+            non_null_sku[self.unit_retail_price] = non_null_sku[self.unit_retail_price].abs()
+            non_null_sku[self.unit_revenue] = non_null_sku[self.unit_revenue].abs()
+            
             aggregated_df = non_null_sku.groupby(groupby_columns).agg(agg_columns).reset_index()
             self.df = pd.concat([aggregated_df, null_sku])
             return self.df
@@ -248,9 +251,11 @@ class DtoDataProcessAmazon:
             
     def calculate_weighted_mean(self, unit_retail_price, unit_revenue, quantity_col, revenue_col, retail_price):
         '''Calculating weighted mean of unit_retail_price and unit_revenue'''
-        try: 
-            self.df[unit_retail_price] = self.df[retail_price] / self.df[quantity_col]
-            self.df[unit_revenue] = self.df[revenue_col] / self.df[quantity_col]
+        try:
+            mask = self.df[quantity_col] != 0
+            self.df.loc[mask, unit_retail_price] = self.df.loc[mask, retail_price] / self.df.loc[mask, quantity_col]
+            self.df.loc[mask, unit_revenue] = self.df.loc[mask, revenue_col] / self.df.loc[mask, quantity_col]
+            
         except Exception as e:
             raise RuntimeError(f"Error calculating weighted mean: {e}")
             
