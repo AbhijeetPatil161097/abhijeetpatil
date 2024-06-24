@@ -731,17 +731,9 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
     
     # Drop intermediate columns except for the validation column
     metrics_metadata.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
-        
-    # Drop rows with any null values
-    metrics_metadata_filtered = metrics_metadata.dropna(how='any')
-    dropped_rows = metrics_metadata[~metrics_metadata.index.isin(metrics_metadata_filtered.index)]
-    
-    # Log dropped rows
-    if not dropped_rows.empty:
-        logging.info(f"Dropped rows due to null values:\n{dropped_rows}")
     
     # Append metric metadata to S3
-    append_metadata_to_csv(metrics_metadata_filtered, metric_bucket_name, metric_file_key)
+    append_metadata_to_csv(metrics_metadata, metric_bucket_name, metric_file_key)
 
     # Log success message
     logging.info(f"Metrics metadata successfully appended to S3 bucket: {metric_bucket_name}/{metric_file_key}")
