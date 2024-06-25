@@ -760,42 +760,32 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
 
     """
     # Raw metrics data
-    def raw_metrics_df(metric_metadata):
-        '''Create Dataframe'''
-        raw_metrics_data = create_dataframe(metric_metadata)
-        return raw_metrics_data
+    raw_metrics_data = raw_metadata(metric_metadata)
     
     # Create DataFrame of processed metrics
-    def processed_metrics_df(metric_metadata_processed):
-        '''Create Dataframe'''
-        processed_metrics_data = create_dataframe(metric_metadata_processed)
-        return processed_metrics_data
+    processed_metrics_data = pd.DataFrame(metric_metadata_processed)
     
-    # Combine metrics metadata and explode contents
-    def concat_and_explode(raw_metrics_data, processed_metrics_data):
-        '''Concat dataframes on 'partner and month_in_data' and explode rows. '''
-        metrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
+    # Combine metrics metadata
+    metrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
+    metrics_metadata = metrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
 
-        # explode combine rows into multiple rows
-        metrics_metadata = metrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
-
-        # Drop rows with any null values
-        metrics_metadata_filtered = metrics_metadata.dropna(how='any')
-
-        # Filter rows with null values
-        dropped_rows = metrics_metadata[~metrics_metadata.index.isin(metrics_metadata_filtered.index)]
-        return metrics_metadata_filtered, dropped_rows
-
-    raw_metrics_data = raw_metrics_df(metric_metadata)
-    processed_metrics_data = processed_metrics_df(metric_metadata_processed)
-    metrics_metadata_filtered, dropped_rows = concat_and_explode(raw_metrics_data, processed_metrics_data)
-
-    # Log dropped rows
-    if not dropped_rows.empty:
-        logging.info(f"Dropped rows due to null values:\n{dropped_rows}")
+    # Add validation column
+    grouped = metrics_metadata.groupby(['partner', 'months_in_data', 'metric']).agg({'raw_file_value': 'sum', 'processed_file_value': 'mean'}) \
+                                                                 .reset_index()
+    metrics_metadata = pd.merge(metrics_metadata, grouped, on=['partner', 'months_in_data', 'metric'], suffixes=('', '_grouped'))
+    
+    # Round the sum and mean values
+    metrics_metadata['raw_file_value_grouped'] = metrics_metadata['raw_file_value_grouped'].astype(float).round()
+    metrics_metadata['processed_file_value_grouped'] = metrics_metadata['processed_file_value_grouped'].astype(float).round()
+    
+    # Perform validation
+    metrics_metadata['validation'] = metrics_metadata['raw_file_value_grouped'] == metrics_metadata['processed_file_value_grouped']
+    
+    # Drop intermediate columns except for the validation column
+    metrics_metadata.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
     
     # Append metric metadata to S3
-    append_metadata_to_csv(metrics_metadata_filtered, metadata_bucket, metric_file_key)
+    append_metadata_to_csv(metrics_metadata, metadata_bucket, metric_file_key)
 
     # Log success message
     logging.info(f"Metrics metadata successfully appended to S3 bucket: {metadata_bucket}/{metric_file_key}")
