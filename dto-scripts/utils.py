@@ -755,7 +755,7 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
     Parameters:
         * metric_metadata: Metric metadata of raw files.
         * metric_metadata_processed : Metric metadata of processed files.
-        * metric_bucket_name: File bucket name.
+        * metadata_bucket: File bucket name.
         * metric_file_key: File prefix key.
 
     """
@@ -798,7 +798,7 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
     append_metadata_to_csv(metrics_metadata_filtered, metadata_bucket, metric_file_key)
 
     # Log success message
-    logging.info(f"Metrics metadata successfully appended to S3 bucket: {metric_bucket_name}/{metric_file_key}")
+    logging.info(f"Metrics metadata successfully appended to S3 bucket: {metadata_bucket}/{metric_file_key}")
 
 
 
