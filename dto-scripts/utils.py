@@ -781,32 +781,38 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
 
         # Drop rows with any null values
         metrics_metadata_filtered = metrics_metadata.dropna(how='any')
-
-        # Filter rows with null values
-        dropped_rows = metrics_metadata[~metrics_metadata.index.isin(metrics_metadata_filtered.index)]
-        return metrics_metadata_filtered, dropped_rows
+        
+        return metrics_metadata_filtered
 
     # Add validation column
-    grouped = metrics_metadata_filtered.groupby(['partner', 'months_in_data', 'metric']).agg({'raw_file_value': 'sum', 'processed_file_value': 'mean'}) \
+    def validation_column(metrics_metadata_filtered):
+        '''Adds a boolen validation column where true if validation is correct and false if not'''
+        grouped = metrics_metadata_filtered.groupby(['partner', 'months_in_data', 'metric']).agg({'raw_file_value': 'sum', 'processed_file_value': 'mean'}) \
                                                                  .reset_index()
-    metrics_metadata_filtered = pd.merge(metrics_metadata_filtered, grouped, on=['partner', 'months_in_data', 'metric'], suffixes=('', '_grouped'))
-    
-    # Round the sum and mean values
-    metrics_metadata_filtered['raw_file_value_grouped'] = metrics_metadata_filtered['raw_file_value_grouped'].astype(float).round()
-    metrics_metadata_filtered['processed_file_value_grouped'] = metrics_metadata_filtered['processed_file_value_grouped'].astype(float).round()
-    
-    # Perform validation
-    metrics_metadata_filtered['validation'] = metrics_metadata_filtered['raw_file_value_grouped'] == metrics_metadata_filtered['processed_file_value_grouped']
-    
-    # Drop intermediate columns except for the validation column
-    metrics_metadata_filtered.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
-    
-    # Append metric metadata to S3
+        metrics_metadata_filtered = pd.merge(metrics_metadata_filtered, grouped, on=['partner', 'months_in_data', 'metric'], suffixes=('', '_grouped'))
+        
+        # Round the sum and mean values
+        metrics_metadata_filtered['raw_file_value_grouped'] = metrics_metadata_filtered['raw_file_value_grouped'].astype(float).round()
+        metrics_metadata_filtered['processed_file_value_grouped'] = metrics_metadata_filtered['processed_file_value_grouped'].astype(float).round()
+
+        # Perform validation
+        metrics_metadata_filtered['validation'] = metrics_metadata_filtered['raw_file_value_grouped'] == metrics_metadata_filtered['processed_file_value_grouped']
+        
+        # Drop intermediate columns except for the validation column
+        metrics_metadata_filtered.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
+
+        return metrics_metadata_filtered
+
+    raw_metrics_data = raw_metrics_df(metric_metadata)
+    processed_metrics_data = processed_metrics_df(metric_metadata_processed)
+    metrics_metadata_filtered, dropped_rows = concat_and_explode(raw_metrics_data, processed_metrics_data)
+    metrics_metadata_filtered = validation_column(metrics_metadata_filtered)
+
+    # Append metadata file to s3
     append_metadata_to_csv(metrics_metadata_filtered, metadata_bucket, metric_file_key)
 
     # Log success message
     logging.info(f"Metrics metadata successfully appended to S3 bucket: {metadata_bucket}/{metric_file_key}")
-
 
 
 # Write processed data in s3
