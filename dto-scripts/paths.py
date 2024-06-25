@@ -32,7 +32,7 @@ script_keys = [
 
 # Output data paths
 output_bucket_name = 'cdr-research'
-output_folder_key = 'Projects/DTO/Output/test/'
+output_folder_key = 'Projects/DTO/test/'
 
 # Currency data paths
 currency_bucket_name = 'cdr-research'
