@@ -124,7 +124,7 @@ class DtoDataProcessAmazon:
         
         self.df.rename(columns=self.column_rename_map, inplace=True)          
         self.columns_to_drop = [
-            'Disc Plus', 'Transaction', 'CYS Discount', 'Category', 
+            'Disc Plus', 'CYS Discount', 'Category', 
             'DVD Street Date', 'Theatrical Release Date', 'Episode Number', 'Vendor Code'
         ]
         self.title_columns = ['Series Title', 'Season Title', 'Title']
