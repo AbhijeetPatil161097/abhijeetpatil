@@ -181,8 +181,8 @@ class DtoDataProcessItunes:
             'Revenue Native': 'sum', 
             'Retail Price Native': 'sum', 
             #'ASSET/CONTENT FLAVOR': lambda x: '|'.join(sorted(pd.Series.unique(x))), # only available in sales data
-            'Sales or Return': lambda x: '|'.join(pd.Series.unique(x)),
-            'PARTNER_TITLE': lambda x: '%%'.join(pd.Series.unique(x))
+            'Sales or Return': lambda x: '|'.join(sorted(pd.Series.unique(x))),
+            'PARTNER_TITLE': lambda x: '%%'.join(sorted(pd.Series.unique(x)))
         }
 
         self.na_str_value = '_NA_'
