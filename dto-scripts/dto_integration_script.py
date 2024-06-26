@@ -19,7 +19,7 @@ def merge_dataframes(df_amazon, df_itunes, df_google):
         df_amazon = df_amazon.rename(columns={
             'SKU_NUMBER': 'VENDOR_ASSET_ID', 
             'NEW_TITLE': 'TITLE', 
-            'Transaction': 'TRANSACTION_TYPE'
+            'TRANSACTION': 'TRANSACTION_TYPE'
         })
         
         non_none_dfs.append(df_amazon)
