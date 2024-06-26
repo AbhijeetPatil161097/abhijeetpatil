@@ -431,7 +431,7 @@ def write_data_to_s3(df, bucket_name, file_key):
                     logging.error(f"An error occurred while writing metric data to S3: {e}")
                     raise RuntimeError("Failed to write data to S3.") from e
                 path = f's3://{bucket_name}/{file_key_name}'
-                data.to_csv(path, index=False, mode='w')
+                data.to_csv(path, index=False, mode='w', sep=',', line_terminator='\n')
                 logging.info(f"Data writing to S3 is successful for file{file_name}.")
     except Exception as e:
         logging.error(f"An error occurred while writing data to S3: {e}")
