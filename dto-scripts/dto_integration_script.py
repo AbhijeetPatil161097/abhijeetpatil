@@ -19,7 +19,7 @@ def merge_dataframes(df_amazon, df_itunes, df_google):
         df_amazon = df_amazon.rename(columns={
             'SKU_NUMBER': 'VENDOR_ASSET_ID', 
             'NEW_TITLE': 'TITLE', 
-
+            'TRANSACTION': 'TRANSACTION_TYPE'
         })
         
         non_none_dfs.append(df_amazon)
@@ -32,7 +32,7 @@ def merge_dataframes(df_amazon, df_itunes, df_google):
             'ASSET/CONTENT_FLAVOR': 'MEDIA_FORMAT',
             'COUNTRY_OF_SALE': 'TERRITORY', 
             'START_DATE': 'TRANSACTION_DATE', 
-            'SALES_OR_RETURN' : 'TRANSACTION_FORMAT'
+            'SALES_OR_RETURN' : 'TRANSACTION_TYPE'
         })
         
         non_none_dfs.append(df_itunes)
@@ -43,7 +43,6 @@ def merge_dataframes(df_amazon, df_itunes, df_google):
             'NEW_TITLE' : 'TITLE',
             'RESOLUTION' : 'MEDIA_FORMAT', 
             'COUNTRY': 'TERRITORY',
-            'TRANSACTION_TYPE' : 'TRANSACTION_FORMAT'
         })
         
         non_none_dfs.append(df_google)
