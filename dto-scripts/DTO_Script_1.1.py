@@ -132,7 +132,8 @@ def read_data_from_s3_amazon(bucket_name, prefix):
             logging.info(f"Raw Metadata appended for file: {file_key}")
 
     except Exception as e:
-        logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
+       logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
+       upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
 
 
 
@@ -290,9 +291,10 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                 except Exception as e:
                     logging.error(f"Error processing file {file_key}: {e}")
         except Exception as e:
-            logging.error(f"Error reading data from S3 bucket: {e}")
+           logging.error(f"Error reading data from S3 bucket: {e}")           
     except Exception as e:
-        logging.error(f"An error occurred while reading data from S3 Itunes: {e}")
+       logging.error(f"An error occurred while reading data from S3 Itunes: {e}")
+       upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
       
     
 
@@ -365,7 +367,9 @@ def read_data_from_s3_google(bucket_name, prefix):
             else:
                 logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
     except Exception as e:
-        logging.error(f"An error occurred while reading data from S3 Google: {e}")
+       logging.error(f"An error occurred while reading data from S3 Google: {e}")
+       upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+       
 
 # Trigger DTO_Script_2 glue job
 def trigger_script_2():
@@ -377,7 +381,10 @@ def trigger_script_2():
         response = glue_client.start_job_run(JobName=glue_job_name)
         logging.info("Glue Job started:", response)
     except Exception as e:
-        logging.error("Error triggering Glue job:", e)
+       logging.error("Error triggering Glue job:", e)
+       upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+       
+       
 
 def main():
     """
