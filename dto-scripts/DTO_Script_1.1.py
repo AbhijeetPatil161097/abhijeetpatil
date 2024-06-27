@@ -292,7 +292,8 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                     else:
                         raise ValueError(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
                 except Exception as e:
-                    logging.error(f"Error processing file {file_key}: {e}")
+                   logging.error(f"Error processing file {file_key}: {e}")
+                   continue
         except Exception as e:
            logging.error(f"Error reading data from S3 bucket: {e}")           
     except Exception as e:
@@ -322,53 +323,57 @@ def read_data_from_s3_google(bucket_name, prefix):
         files = s3.find(f"{bucket_name}/{prefix}/")
         # Iterate each file from S3 bucket
         for file_path in files:
-            file_key = file_path.split(f'{bucket_name}/')[1]
-            file_name = os.path.basename(file_key)
-            logging.info(f"Processing started for file: {file_key}")
-            
-            # Get file creation date using s3fs
-            file_info = s3.info(file_key)
-            file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-            file_name_month = _extract_date_from_file_key(file_key, partner)
-
-            # Read and process other file formats
-            file_extension = os.path.splitext(file_key)[1].lower()
-            df = _read_file_from_s3(bucket_name, file_key, file_extension)
-            country_index = df.index[df['Per Transaction Report'] == 'Country'].tolist()[0]
-            df = df.iloc[country_index:]
-            df.columns = df.iloc[0]
-            df = df[1:]
-            
-            # Convert column headers to strings explicitly
-            df.columns = [re.sub(pattern, '', col) for col in df.columns]
-            df = df.dropna(subset = ['Transaction Date', 'YouTube Video ID'])
-            df['Transaction Date'] = pd.to_datetime(df['Transaction Date'])
-            df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
-            df['QUANTITY'] = 1
-            file_row_count = len(df)
-            
-            # Get unique months from DataFrame.
-            unique_months = ','.join(df['Transaction Date'].unique())
-            file_info = s3.info(f"{bucket_name}/{file_key}")
-            file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-            file_row_count = len(df)
-
-            # Append metadata
-            _collect_file_metadata(bucket_name, 
-                                    file_key, 
-                                    file_name, 
-                                    file_creation_date,
-                                    file_name_month,
-                                    partner,
-                                    unique_months,
-                                    file_row_count
-                                    )
-            logging.info(f"Raw Metadata appended for file: {file_key}")
-            
-            if (df['Transaction Date'] == df['FILE_NAME_DATE']).all():
-                continue
-            else:
-                logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
+           try:
+               file_key = file_path.split(f'{bucket_name}/')[1]
+               file_name = os.path.basename(file_key)
+               logging.info(f"Processing started for file: {file_key}")
+               
+               # Get file creation date using s3fs
+               file_info = s3.info(file_key)
+               file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
+               file_name_month = _extract_date_from_file_key(file_key, partner)
+   
+               # Read and process other file formats
+               file_extension = os.path.splitext(file_key)[1].lower()
+               df = _read_file_from_s3(bucket_name, file_key, file_extension)
+               country_index = df.index[df['Per Transaction Report'] == 'Country'].tolist()[0]
+               df = df.iloc[country_index:]
+               df.columns = df.iloc[0]
+               df = df[1:]
+               
+               # Convert column headers to strings explicitly
+               df.columns = [re.sub(pattern, '', col) for col in df.columns]
+               df = df.dropna(subset = ['Transaction Date', 'YouTube Video ID'])
+               df['Transaction Date'] = pd.to_datetime(df['Transaction Date'])
+               df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
+               df['QUANTITY'] = 1
+               file_row_count = len(df)
+               
+               # Get unique months from DataFrame.
+               unique_months = ','.join(df['Transaction Date'].unique())
+               file_info = s3.info(f"{bucket_name}/{file_key}")
+               file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
+               file_row_count = len(df)
+   
+               # Append metadata
+               _collect_file_metadata(bucket_name, 
+                                       file_key, 
+                                       file_name, 
+                                       file_creation_date,
+                                       file_name_month,
+                                       partner,
+                                       unique_months,
+                                       file_row_count
+                                       )
+               logging.info(f"Raw Metadata appended for file: {file_key}")
+               
+               if (df['Transaction Date'] == df['FILE_NAME_DATE']).all():
+                   continue
+               else:
+                   logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
+            except:
+               logging.error(f"Error reading amazon file:{file_key}")
+               continue 
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Google: {e}")
        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
@@ -398,10 +403,10 @@ def main():
         read_data_from_s3_amazon(input_bucket_name, input_folder_key_amazon)
         
         # Itunes data
-        #read_data_from_s3_itunes(input_bucket_name, input_folder_key_itunes)
+        read_data_from_s3_itunes(input_bucket_name, input_folder_key_itunes)
         
         # Google data
-        #read_data_from_s3_google(input_bucket_name, input_folder_key_google)
+        read_data_from_s3_google(input_bucket_name, input_folder_key_google)
         
         # Get existing Metadata
         existing_metadata_df = read_existing_metadata(metadata_bucket, processed_metadata_file_key)
