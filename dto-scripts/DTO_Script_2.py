@@ -1,314 +1,831 @@
-import os
-import logging
+# Import Libraries
+import s3fs
+from awsglue.utils import getResolvedOptions
+from awsglue.context import GlueContext
+from pyspark.context import SparkContext
+from awsglue.job import Job
+
 import pandas as pd
 import numpy as np
-import s3fs
+from io import BytesIO, StringIO
+import boto3
+import gzip
+import io
+import re
 
-fs = s3fs.S3FileSystem()
+import logging
+import sys
+import os
 
-def read_data_from_s3_amazon(files_to_process, bucket_name):
+from datetime import datetime
+
+s3 = s3fs.S3FileSystem()
+
+# Define paths
+log_file_bucket_name = 'cdr-research'
+log_file_key = 'Projects/DTO/Misc/glue_job_log.txt'
+
+script_bucket_name = 'cdr-research'
+script_keys = [
+    'Projects/DTO/dto-scripts/dto_amazon_script.py',
+    'Projects/DTO/dto-scripts/dto_itunes_script.py',
+    'Projects/DTO/dto-scripts/dto_google_script.py',
+    'Projects/DTO/dto-scripts/dto_integration_script.py'
+]
+
+input_bucket_name = 'azv-s3str-pmsa1'
+output_bucket_name = 'cdr-research'
+output_folder_key = 'Projects/DTO/Output'
+
+currency_bucket_name = 'cdr-research'
+currency_file_key = 'Projects/DTO/Currency/data_0_0_0.csv.gz'
+
+new_files_bucket_name = 'cdr-research'
+new_files_file_key = 'Projects/DTO/Misc/new_files_to_process.csv'
+
+metric_bucket_name = 'cdr-research'
+metric_file_key = 'Projects/DTO/Metadata/metric_validation.csv'
+
+processed_metadata_bucket = 'cdr-research'
+processed_metadata_file_key = 'Projects/DTO/Metadata/processed_metadata.csv'
+
+
+# Create empty lists to store metadata
+new_raw_metadata = []
+new_processed_metadata_all = []
+metric_metadata = []
+metric_metadata_processed = []
+
+
+# Initialize logging
+def initialize_logging(log_file_path):
     """
     Function:
-        * Reads Amazon files from S3 listed in the files_to_process and processes them into a DataFrame.
+        * Initializes logging file.
     
     Parameters:
-        * files_to_process: DataFrame containing metadata of new files to process from function read_new_files.
-        * bucket_name: S3 bucket name of raw Amazon Data.
+        * log_file_path : Path of log file
+    
+    """
+    try:
+        logging.basicConfig(level=logging.INFO, 
+                            format='%(asctime)s - %(levelname)s - %(message)s', 
+                            filename=log_file_path
+                           )
+        return True
+    except Exception as e:
+        print(f"An error occurred while initializing logging: {e}")
+        return False
+    
+    
+# Start log file    
+log_file_path = 'glue_job_log.txt'  # creates a log file in script
+if not initialize_logging(log_file_path):
+    raise RuntimeError("Failed to initialize logging.")
+    
+    
+# Initialize Glue Job
+try:
+    args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+    sc = SparkContext()
+    glueContext = GlueContext(sc)
+    spark = glueContext.spark_session
+    job = Job(glueContext)
+    job.init(args['JOB_NAME'], args)
+except Exception as e:
+    logging.error(f"Failed to initialize Glue job: {e}")
+    upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+    raise RuntimeError("Failed to initialize Glue job.") from e
+    
+    
+# Upload log file to s3
+def upload_log_file_to_s3(local_file_path, bucket_name, key):
+    """
+    Function:
+        * Uploads log file to S3 bucket
+    
+    Parameters:
+        * local_file_path: path of log file in Glue job
+        * bucket_name: Log file output bucket name
+        * key: Output log File prefix.
+    
+    """
+    try:
+        s3.put(local_file_path, f"{bucket_name}/{key}")
+    except Exception as e: 
+        logging.error(f"An error occurred while uploading log file to S3: {e}")
+        
+        
+# Read new files to process
+def read_new_files(bucket_name, file_key):
+    """
+    Function:
+        * Reads existing new file to process from S3 and converts it into a DataFrame.
+    
+    Parameters:
+        * bucket_name: S3 bucket name of files_to_process.csv.
+        * file_key: S3 key for the files_to_process.csv.
     
     Returns:
-        * DataFrame: Combined DataFrame from all Amazon files from read_new_files.
+        * DataFrame: DataFrame of new files to process.
     """
-    
     try:
-        logging.info("Processing files for Amazon")
+        s3_url = f"s3://{bucket_name}/{file_key}"
+        files_to_process = pd.read_csv(s3_url)
+        return files_to_process
+    except Exception as e:
+        logging.error(f"An error occurred in function read_new_files: {e}")
+        raise RuntimeError("Failed to run function read_new_files .") from e
         
-        partner = 'amazon'
         
-        # Empty list to store DataFrames of each file.
-        df_list_amazon = []
+# Read script from S3
+def read_script_from_s3(bucket_name, file_key):
+    """
+    Function:
+        * Reads scripts from S3 bucket
+    
+    Parameters:
+        * bucket_name: S3 bucket name of script location.
+        * file_key: S3 key for the script.
+    
+    Returns:
+        * Script in original format.
+    """
+    try:
+        script = s3.cat(f"s3://{bucket_name}/{file_key}").decode('utf-8')
+        return script
+    except Exception as e:
+        logging.error(f"An error occurred while reading script from S3: {e}")
+        raise RuntimeError("Failed to run function read_script_from_s3.") from e
         
-        # Filter amazon files from files_to_process dataframe. ('_filter_partner_files' Function defined in DTO_Script_2.py)
-        amazon_files_df = _filter_partner_files(files_to_process, partner)
         
-        if amazon_files_df.empty:
-            logging.error("No new Amazon files to process.")
-            return pd.DataFrame()
+def _filter_partner_files(files_to_process, partner):
+    """
+    Function:
+        * Filters files_to_process dataframe based on partner name.
+    
+    Parameters:
+        * files_to_process: Dataframe of files to process.
         
-        # Iterating each row to get s3 url of file.
-        for index, row in amazon_files_df.iterrows():
-            s3_url = row['raw_file_path']
-            file_key = s3_url.split(f's3://{bucket_name}/')[1]
-            logging.info(f"Processing started for file: {file_key}")
+    Returns:
+        * Filtered DataFrame based on partner name.
+    """
+    filtered_df =  files_to_process[files_to_process['partner'] == partner]
+    return filtered_df
 
-            file_name = os.path.basename(file_key)
-            file_extension = os.path.splitext(file_key)[1].lower()
+def _read_file_from_s3(bucket_name, file_key, file_extension):
+    """
+    Function:
+        * Read files with different file extension.
+    
+    Parameters:
+        * bucket_name: Bucket name of input data.
+        * File Key: File key prefix for file.
+        * file_extension: extension of given file.
+        
+    Returns:
+        * Dataframe of raw file data.
+    
+    """
+    try:
+        file_path = f"s3://{bucket_name}/{file_key}"
+        
+        if file_extension == '.csv':
+            return pd.read_csv(file_path)
+        elif file_extension == '.tsv':
+            return pd.read_csv(file_path, sep='\t')
+        elif file_extension == '.xls':
+            return pd.read_csv(file_path, sep='\t')
+        elif file_extension == '.xlsx':
+            return pd.read_excel(file_path)
+        elif file_extension == '.gz':
+            with s3.open(file_path, 'rb') as f:
+                return pd.read_csv(f, sep='\t', compression='gzip')
+        else:
+            raise ValueError(f"Unsupported file format: {file_path}{file_extension}")
+    except Exception as e:
+        logging.error(f"An error occurred while reading file from S3: {e}")
+
+    
+def _collect_file_metadata(bucket_name, 
+                           file_key, 
+                           file_name, 
+                           file_creation_date,
+                           file_name_month,
+                           partner,
+                           unique_months,
+                           file_row_count
+                          ):
+    """
+    Function:
+        * Collects Metadata of file and appends it in list new_raw_metadata.
+    
+    """
+    try:
+        new_raw_metadata.append({
+            'raw_file_path': f"s3://{bucket_name}/{file_key}", 
+            'raw_file_name': file_name,                       
+            'raw_file_creation_date': file_creation_date,
+            'raw_file_name_month': file_name_month,
+            'platform': 'DTO',
+            'partner': partner,
+            'months_in_data': unique_months,
+            'raw_file_row_count': file_row_count
+        })
+    except Exception as e:
+        logging.error(f"Failed to append metadata in list new_raw_metadata_amazon: {file_key}, Error: {e}")
+        
+
+def _collect_metric_metadata(bucket_name,
+                             file_key, 
+                             file_name, 
+                             partner,
+                             unique_months,
+                             metrics=None, 
+                             raw_file_values=None
+                            ):
+    """
+    Function:
+        * Collects metadata for metric validation and appends in list metric_metadata.
+    
+    """
+    try:
+        metadata = {
+            'raw_file_path': f"s3://{bucket_name}/{file_key}", 
+            'raw_file_name': file_name,                       
+            'platform': 'DTO',
+            'partner': partner,
+            'months_in_data': unique_months,
+        }
+        
+        if metrics is not None:
+            metadata['metric'] = metrics
+
+        if raw_file_values is not None:
+            metadata['raw_file_value'] = raw_file_values
+        
+        metric_metadata.append(metadata)
+    except Exception as e:
+        logging.error(f"Failed to append metadata in list metric_metadata: {file_key}, Error: {e}")
+        
+        
+def _collect_processed_metadata(bucket_name, 
+                           file_key, 
+                           file_name, 
+                           file_creation_date,
+                           file_name_month,
+                           partner,
+                           unique_months,
+                           file_row_count
+                          ):
+    """
+        Function:
+            * Collects Metadata of processed file and appends it in list new_raw_metadata.
+    
+    """
+    try:
+        new_raw_metadata.append({
+            'raw_file_path': f"s3://{bucket_name}/{file_key}", 
+            'raw_file_name': file_name,                       
+            'raw_file_creation_date': file_creation_date,
+            'raw_file_name_month': file_name_month,
+            'platform': 'DTO',
+            'partner': partner,
+            'months_in_data': unique_months,
+            'raw_file_row_count': file_row_count
+        })
+    except Exception as e:
+        logging.error(f"Failed to append metadata in list new_raw_metadata_amazon: {file_key}, Error: {e}")
+        
+        
+
+        
+def _remove_associated_files(partner_df, new_files_df, new_raw_metadata, partner):
+    """
+    Function:
+        * Removes all data asssociated with same partner and month of any unprocessed file to prevent 
+        processing incomplete data
+        
+    Parameters:
+        * partner_df : DataFrame of partner raw files.
+        * new_files_df: filtered DataFrame of files to process on partner.
+        * new_raw_metadata : DataFrame of metadata of current iteration raw files.
+        * parrtner: name of partner in string.
+    
+    Returns:
+        * DataFrame after removing all associated files.
+    """
+    try:
+        files_with_issue = new_files_df.merge(new_raw_metadata, 
+                                                  how='left',
+                                                  on=['raw_file_path', 'months_in_data'],
+                                                  indicator=True)
+        files_with_issue = files_with_issue[files_with_issue['_merge'] == 'left_only']
+        files_with_issue.drop('_merge', axis=1, inplace=True)
+        months_in_data = files_with_issue['months_in_data'].tolist()
+        logging.error(f"Files not processed for {partner} date: {files_with_issue['months_in_data'].unique().tolist()}")
+        
+        if partner == 'amazon':
+            return partner_df[~partner_df['TRANSACTION_DATE'].isin(months_in_data)]
+        elif partner == 'itunes':
+            return partner_df[~partner_df['Start Date'].isin(months_in_data)]
+        elif partner == 'google':
+            return partner_df[~partner_df['Transaction Date'].isin(months_in_data)]
             
-            # Read data  from raw file and create DataFrame. ('_read_file_from_s3' - Function defined in DTO_Script_2.py)
-            df = _read_file_from_s3(bucket_name, file_key, file_extension)
-            if df is None:
-                logging.error(f"Amazon file is empty or could not be read: {file_key}")
-                continue
+    except Exception as e:
+        logging.error(f"Failed to remove faulty files from Amazon data, Error: {e}")
+
+
+def _extract_date_from_file_key(file_key, partner):
+    """
+    Function:
+        * Extracts date from file key.
+        
+    Returns:
+        * Date in yyyy-mm format.
+    
+    """
+    if partner == 'amazon':
+        return '-'.join(file_key.split('_')[-1].split('-')[:2])
+    
+    if partner == 'itunes':
+        if file_key.endswith('.gz'):
+            date_match = re.search(r'(\d{8})\.txt\.gz$|(\d{8})\.gz$', file_key)
+        else:
+            date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
+        
+        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m')
+                if date_match else None).strftime('%Y-%m')
+
+    if partner == 'google':
+        return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')        
+        
+
+# Write data to s3  
+def write_data_to_s3(df, bucket_name, file_key):
+    """
+    Function:
+        * Writes processed data to S3 bucket in PARTNER > YEAR > MONTH format.
+        * Appends processed metadata into list
+    
+    Parameters:
+        * df: DataFrame of processed / transformed data.
+        * bucket_name: S3 bucket of output
+        * file_key: File prefix of output folder.
+        
+    """
+
+    enable_overwrite = False
+    try:
+        for partner, group in df.groupby('PARTNER'):
+            for (year, month), data in group.groupby([
+                pd.to_datetime(group['TRANSACTION_DATE']).dt.year,
+                pd.to_datetime(group['TRANSACTION_DATE']).dt.month
+            ]):
+                # Define file name and key
+                file_name = f"partner={partner}/year={year}/{year}-{month}.csv" 
+                file_key_name = f"{file_key}/{file_name}"
                 
-            # Extract date from file name. ('_extract_date_from_file_key' - Function defined in DTO_Script_2.py)
-            file_name_month = _extract_date_from_file_key(file_key, partner)
-            df['TRANSACTION_DATE'] = file_name_month
-            
-            # Get unique months from DataFrame.
-            unique_months = ','.join(df['TRANSACTION_DATE'].unique())
-            file_info = s3.info(f"{bucket_name}/{file_key}")
-            file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-            file_row_count = len(df)
-            
-            # Get metric data for data processing and aggregation validation.
-            metrics= ['QUANTITY (Quantity)', 'REVENUE_NATIVE (Cost)']
-            raw_file_values = [df['Quantity'].astype('float').sum(), 
-                               df['Cost'].astype('float').sum()]
-            
-            # Collect metadata of raw files. ('_collect_file_metadata' - Function defined in DTO_Script_2.py)
-            _collect_file_metadata(bucket_name, 
-                                   file_key, 
-                                   file_name, 
-                                   file_creation_date,
-                                   file_name_month,
-                                   partner,
-                                   unique_months,
-                                   file_row_count
-                                  )
-            
-            # Collect metric data of raw files. ('_collect_metric_metadata' - Function defined in DTO_Script_2.py)
-            _collect_metric_metadata(bucket_name,
-                                     file_key, 
-                                     file_name, 
-                                     partner,
-                                     unique_months, metrics= metrics, 
-                                     raw_file_values = raw_file_values
-                                    )
-            
-            # Append DataFrame in list. ('df_list_amazon' - List defined in DTO_Script_2.py)
-            df_list_amazon.append(df)
-            
-            logging.info(f"Processing completed for file: {file_key}")
-        
-        # Concat DataFrame
-        df_amazon = pd.concat(df_list_amazon, ignore_index=True)
-        raw_metadata = pd.DataFrame(new_raw_metadata)
-        
-        # Remove all files associated with partner and month of non processed files to prevent incomplete data processing.
-        # '_remove_associated_files' - Function defined in DTO_Script_2.py
-        df_amazon_filtered = _remove_associated_files(df_amazon, amazon_files_df, raw_metadata, partner)
+                # Collect metadata for this file
+                transaction_date = f"{year}-{month:02d}"
+                new_processed_metadata_all.append({
+                    'processed_file_row_count': len(data),
+                    'processed_date': datetime.now().strftime('%Y-%m-%d'),
+                    'processed_file_path': f"s3://{bucket_name}/{file_key_name}",
+                    'months_in_data': transaction_date,
+                    'partner': partner
+                })
+                try:
+                    if partner == 'amazon':
+                        metric_metadata_processed.append({
+                            'processed_file_value': [data['QUANTITY'].sum(), 
+                                                     data['REVENUE_NATIVE'].sum()
+                                                    ],
+                            'processed_date': datetime.now().strftime('%Y-%m-%d'),
+                            'months_in_data': transaction_date,
+                            'partner': partner
+                        })
+                    elif partner == 'itunes':
+                        try:
+                            metric_metadata_processed.append({
+                                'processed_file_value': [data['QUANTITY'].sum(),
+                                                         data['REVENUE_NATIVE'].sum()
+                                                        ],
+                                'processed_date': datetime.now().strftime('%Y-%m-%d'),
+                                'months_in_data': transaction_date,
+                                'partner': partner,
+                            })
+                        except:
+                            logging.error(f"An error occurred while writing itunes metric data to S3: {e}")
+                    elif partner == 'google':
+                        metric_metadata_processed.append({
+                            'processed_file_value': [data['QUANTITY'].sum(),
+                                                     data['REVENUE_NATIVE'].sum()
+                                                    ],
+                            'processed_date': datetime.now().strftime('%Y-%m-%d'),
+                            'months_in_data': transaction_date,
+                            'partner': partner
+                        })
 
-        logging.info("Amazon DataFrame created successfully")
-        return df_amazon_filtered
+                except Exception as e:
+                    logging.error(f"An error occurred while writing metric data to S3: {e}")
+                    raise RuntimeError("Failed to write data to S3.") from e
+                path = f's3://{bucket_name}/{file_key_name}'
+                data.to_csv(path, index=False, mode='w', sep=',', line_terminator='\n')
+                logging.info(f"Data writing to S3 is successful for file{file_name}.")
+    except Exception as e:
+        logging.error(f"An error occurred while writing data to S3: {e}")
+        raise RuntimeError("Failed to write data to S3.") from e
+        
+
+
+# concat processed metadata
+def concat_metadata(raw_metadata, processed_metadata):
+    """
+    Function:
+        * Concatenates processed files DataFrame with metadata DataFrame based on transaction date and platform.
+
+    Parameters:
+        * processed_files_df: DataFrame of processed files with metadata.
+        * metadata_df: DataFrame containing metadata for processed files.
+
+    Returns:
+        * DataFrame: Merged DataFrame containing combined information.
+    """
+    # Merge processed files DataFrame with metadata DataFrame based on transaction_date and platform
+    new_processed_metadata = raw_metadata.merge(processed_metadata, on=['months_in_data', 'partner'], how='left')
+    
+    return new_processed_metadata
+
+
+
+# Get currency data of last date of month of each currency
+def get_last_reporting_start_date_rows(df):
+    """
+    Function:
+        * Gets only the last reported data of each month from currency data.
+    
+    Parameters:
+        * df: DataFrame containing currency data.
+    
+    Returns:
+        * DataFrame: Rows with last reported data of each month.
+    """
+    try:
+        df['REPORTING_START_DATE'] = pd.to_datetime(df['REPORTING_START_DATE'])
+        df = df.sort_values(by=['COUNTRY_CODE', 'REPORTING_START_DATE'])
+        result_df = df.groupby(['COUNTRY_CODE', df['REPORTING_START_DATE'].dt.to_period('M')]).apply(lambda x: x.tail(1)).reset_index(drop=True)
+        result_df['REPORTING_START_DATE'] = result_df['REPORTING_START_DATE'].dt.strftime('%Y-%m')
+        logging.info(f"Detching Conversion Rates for month end dates successful")
+        return result_df
+    except Exception as e:
+        logging.error(f"An error occurred while getting last reporting start date rows: {e}")
+
+
+def map_conversion_rates(month_end_currency_data, final_df):
+    """
+    Function:
+        * Maps conversion rates to all transformed data. ( Amazon + iTunes + Google)
+    
+    Parameters:
+        * month_end_currency_data: Month end data from function get_last_reporting_start_date_rows.
+        * final_df: All transformed partner data of ( Amazon + iTunes + Google)
+    
+    Returns:
+        * Dataframe of all transformed partner data with newly mapped conversion rates.
+    """
+    try:
+        conversion_map = {(date, country): conversion_rate for date, country, conversion_rate in zip(
+            month_end_currency_data['REPORTING_START_DATE'], 
+            month_end_currency_data['COUNTRY_CODE'], 
+            month_end_currency_data['CONVERSION_RATE']
+        )}
+        # Apply conversion rates only where IS_CONVERSION_RATE is False
+        def get_conversion_rate(row):
+            if row['IS_CONVERSION_RATE'] == False:
+                key = (row['TRANSACTION_DATE'], 'GB') if row['TERRITORY'] == 'UK' else (row['TRANSACTION_DATE'], row['TERRITORY'])
+                return conversion_map.get(key, None)
+            return row['CONVERSION_RATE']
+        
+        final_df['CONVERSION_RATE'] = final_df.apply(get_conversion_rate, axis=1)
+        
+        logging.info("Conversion rates mapping is successful.")
+        return final_df
 
     except Exception as e:
-        logging.error(f"An error occurred while reading Amazon data: {e}")
-        return pd.DataFrame()
-    
-class DtoDataProcessAmazon:
-    def __init__(self, platform, df):
-        self.platform = platform
-        self.df = df.copy()
+        logging.error(f"An error occurred while mapping conversion rates: {e}")
+        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("Failed to map conversion rates.") from e
+
         
-        '''                            
-        # As the raw data is generated by partner and output should be from the perspective of A+E, we are renaming
-          the mteric columns.
-        Unit Cost is what A+E gets from partner so it becomes Unit Revenue for A+E.
         
-        '''
-        self.column_rename_map = {
-            'Retail Price': 'Unit Retail Price Native',
-            'Revenue': 'Retail Price Native',
-            'Unit Cost': 'Unit Revenue Native',
-            'Cost': 'Revenue Native'
-        }
+# Map values of revenue_usd and cost_usd to dataframe
+def map_revenue_cost_usd(df):
+    """
+    Maps revenue and cost in USD in the DataFrame.
+    
+    Parameters:
+        df: DataFrame from the output of function (map_conversion_rates) after mapping conversion rates.
+    
+    Returns:
+        DataFrame after mapping revenue and cost in USD.
+    """
+    try:
+        # Apply conversion only if IS_CONVERSION_RATE is False
+        mask = df['IS_CONVERSION_RATE'] == False
         
-        self.df.rename(columns=self.column_rename_map, inplace=True)          
-        self.columns_to_drop = [
-            'Disc Plus', 'CYS Discount', 'Category', 
-            'DVD Street Date', 'Theatrical Release Date', 'Episode Number', 'Vendor Code'
-        ]
-        self.title_columns = ['Series Title', 'Season Title', 'Title']
-        self.new_title_col = 'NEW_TITLE'
-        self.new_partner_col = 'PARTNER_TITLE'
-        self.territory_col = 'Territory'
-        self.sku_col = 'SKU Number'
+        if mask.any():
+            df.loc[mask, 'REVENUE_USD'] = df.loc[mask, 'REVENUE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
+            df.loc[mask, 'RETAIL_PRICE_USD'] = df.loc[mask, 'RETAIL_PRICE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
+            df.loc[mask, 'UNIT_REVENUE_USD'] = df.loc[mask, 'UNIT_REVENUE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
+            df.loc[mask, 'UNIT_RETAIL_PRICE_USD'] = df.loc[mask, 'UNIT_RETAIL_PRICE_NATIVE'] * df.loc[mask, 'CONVERSION_RATE']
         
-        self.unit_retail_price = 'Unit Retail Price Native'
-        self.retail_price = 'Retail Price Native'
-        self.unit_revenue = 'Unit Revenue Native'
-        self.revenue_col = 'Revenue Native'
-        self.quantity_col = 'Quantity'
+            logging.info("Revenue and Retail Price in USD mapping is successful.")
+        else:
+            logging.info("No conversion needed as all rows have IS_CONVERSION_RATE set to True.")
         
-        self.groupby_columns = ['SKU Number', 'Territory', 'TRANSACTION_DATE', 'NEW_TITLE', 'Transaction Format', 'CYS Episode Count']
-        self.agg_columns = {
-            'Unit Retail Price Native': 'mean', 
-            'Unit Revenue Native': 'mean', 
-            'Quantity': 'sum', 
-            'Revenue Native': 'sum', 
-            'Retail Price Native': 'sum', 
-            'Media Format': lambda x: '|'.join(sorted(pd.Series.unique(x))),
-            'PARTNER_TITLE': lambda x: '%%'.join(sorted(pd.Series.unique(x))),
-            'Transaction': lambda x: '%%'.join(sorted(pd.Series.unique(x)))
-        }
+        return df
+
+    except Exception as e:
+        logging.error(f"An error occurred while mapping revenue and cost in USD: {e}")
+        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("Failed to map revenue and cost in USD.") from e
+
+        
+# Function to load currency data from S3, map conversion rates, and map revenue and cost in USD
+def process_currency_and_mapping(currency_bucket_name, currency_file_key, final_df):
+    """
+    Function:
+        * Load currency rates and map in dataframe.
+        * Map revenue and retail price in USD in dataframe
+    Parameters:
+        * currency_bucket_name: Bucket name of currency file
+        * currency_file_key: File prefix of currency file
+        * final_df: Dataframe
+    Returns:
+        * Dataframe after mapping currency data.
+    
+    """
+    # Load currency data from S3
+    s3_currency = s3fs.S3FileSystem()
+    with s3_currency.open(f'{currency_bucket_name}/{currency_file_key}', 'rb') as f:
+        currency_df = pd.read_csv(f, compression='gzip')
+
+    # Assuming this function retrieves rows for the last reporting start date
+    month_end_currency_data = get_last_reporting_start_date_rows(currency_df)
+    
+    # Map conversion rates
+    final_df = map_conversion_rates(month_end_currency_data, final_df)
+    
+    # Map revenue and cost in USD
+    final_df = map_revenue_cost_usd(final_df)
+    
+    return final_df
         
 
-    def drop_columns(self, columns_to_drop):
-        '''Drop redundant columns from DataFrame'''
-        try:
-            existing_columns = [col for col in columns_to_drop if col in self.df.columns]
-            self.df.drop(columns=existing_columns, inplace=True)
-        except Exception as e:
-            raise RuntimeError(f"Error dropping columns: {e}")
+def raw_metadata(raw_metadata):
+    """
+    Function:
+        * Creates a combined DataFrame from the metadata lists for Amazon, iTunes, and Google.
     
-    def remove_quotations(self, sku_col):
-        '''Remove quotation marks (") from SKU Number column'''
-        try:
-            self.df[sku_col] = self.df[sku_col].str.replace('"', '')
-            self.df[sku_col] = self.df[sku_col].replace(' ', np.nan)
-            return self.df
-        except KeyError as e:
-            raise KeyError(f"Error removing quotations: {e}")
+    Parameters:
+        * new_raw_metadata_amazon: List of dictionaries containing Amazon metadata.
+        * new_raw_metadata_itunes): List of dictionaries containing iTunes metadata.
+        * new_raw_metadata_google: List of dictionaries containing Google metadata.
     
-    def new_title(self, row, title_columns):
-        '''Create new title by merging and normalizing all title columns'''
-        try:
-            series_title = str(row['Series Title']).replace('"', '').strip()
-            season_title = str(row['Season Title']).replace('"', '').strip()
-            title = str(row['Title']).replace('"', '').strip()
+    Returns:
+        * DataFrame: DataFrame of current iteration metadata.
+    """
+    metadata_df = pd.DataFrame(raw_metadata)
+    return metadata_df
 
-            if series_title in season_title:   
-                if season_title in title:
-                    return title
-                else:
-                    return f"{season_title} | {title}"
-            elif season_title in title:
-                return f"{series_title} | {title}"
-            else:
-                return f"{series_title} | {season_title} | {title}"
-        except KeyError as e:
-            raise RuntimeError(f"Error processing  new_title: {e}")
+
+def append_metadata_to_csv(new_processed_metadata, bucket_name, file_key):
+    """
+    Function:
+        * If file already present, Appends current processed metadata DataFrame to a CSV file in an S3 bucket.
+        * If file not present, writes current processed metadata DataFrame to a CSV file in an S3 bucket.
     
-    def new_partner_title(self, row, title_columns):
-        '''Create partner title by merging all title columns and using (||) as a seperator.'''
-        try:
-            titles = [str(row[col]).replace('"', '').strip() for col in title_columns]
-            return ' || '.join(titles)
-        except KeyError as e:
-            raise RuntimeError(f"Error processing pertner_title: {e}")
+    Parameters:
+        * current_metadata_df): DataFrame containing current metadata.
+        * bucket_name: S3 bucket name.
+        * file_key: S3 key for the metadata CSV.
+    """
+    path = f's3://{bucket_name}/{file_key}'
+    fs = s3fs.S3FileSystem()
 
-    def process_new_title_and_drop_columns(self, title_columns, new_title_col, new_partner_col):
-        '''Add new title and partner title in DataFrame and remove old title columns.'''
-        try:
-            self.df[new_title_col] = self.df.apply(lambda row: self.new_title(row, title_columns), axis=1)
-            self.df[new_partner_col] = self.df.apply(lambda row: self.new_partner_title(row, title_columns), axis=1)
-            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('|', '').strip())
-            self.df.drop(columns=title_columns, inplace=True)
-        except KeyError as e:
-            raise RuntimeError(f"Error adding new title or dropping old title columns in DataFrame: {e}")
-
-    def replace_titles(self, territory_col, sku_col, new_title_col):
-        '''By matching SKU Number, replace all non english titles by US titles.'''
-        try:
-            mask = (self.df[territory_col] == 'US') & (self.df[sku_col] != np.nan)
-            filtered_data = self.df[mask]
-
-            grouped_titles = filtered_data.groupby(sku_col)[new_title_col]
-            most_frequent_titles = grouped_titles.apply(lambda x: x.mode()[0] if not x.empty else x.iloc[0]).reset_index(name=new_title_col)
-
-            merged_data = self.df.merge(most_frequent_titles, on=sku_col, how='left', suffixes=('_x', '_y'))
-            merged_data[new_title_col] = merged_data.pop(new_title_col + '_y').combine_first(merged_data.pop(new_title_col + '_x')).str.strip()
-
-            self.df = merged_data
-            return self.df
-        except KeyError as e:
-            raise KeyError(f"Error replacing titles: {e}")
-            
-    def calculate_retail_price(self, unit_retail_price, retail_price, quantity_col):
-        '''
-            Calculate retail price by multiplying unit_retail_price to quantity
-            Using absolute of quantity to account for returns or refunds.
-            
-        '''
-        try:
-            self.df[retail_price] = self.df[unit_retail_price] * self.df[quantity_col].abs()
-        except Exception as e:
-            raise RuntimeError(f"Error calculating retail price: {e}")
-            
-    def aggregate_data(self, groupby_columns, agg_columns):
-        '''Aggregate data on on groupby_columns'''
-        try:
-            null_sku = self.df[self.df[self.sku_col].isna()]
-            non_null_sku = self.df[~self.df[self.sku_col].isna()]
-            
-            non_null_sku[self.unit_retail_price] = non_null_sku[self.unit_retail_price].abs()
-            non_null_sku[self.unit_revenue] = non_null_sku[self.unit_revenue].abs()
-            
-            aggregated_df = non_null_sku.groupby(groupby_columns).agg(agg_columns).reset_index()
-            self.df = pd.concat([aggregated_df, null_sku])
-            return self.df
-        except KeyError as e:
-            raise RuntimeError(f"Error aggregating data: {e}")
-            
-            
-    def calculate_weighted_mean(self, unit_retail_price, unit_revenue, quantity_col, revenue_col, retail_price):
-        '''Calculating weighted mean of unit_retail_price and unit_revenue'''
-        try:
-            mask = self.df[quantity_col] != 0
-            self.df.loc[mask, unit_retail_price] = self.df.loc[mask, retail_price] / self.df.loc[mask, quantity_col]
-            self.df.loc[mask, unit_revenue] = self.df.loc[mask, revenue_col] / self.df.loc[mask, quantity_col]
-            
-        except Exception as e:
-            raise RuntimeError(f"Error calculating weighted mean: {e}")
-            
-    
-    def rename_columns(self):
-        '''Rename column name by Capitalizing and replacing empty space by underscore.'''
-        try:
-            self.df.rename(columns=lambda x: x.upper().replace(' ', '_'), inplace=True)
-        except Exception as e:
-            raise RuntimeError(f"Error renaming columns: {e}")
-    
-    
-    def add_columns_to_df(self, vendor_name):
-        '''
-            Add necessary columns in DataFrame.
-            * Adding PARTNER column to distinguish data after merging with other partners.
-            * Adding REVENUE_USD to calculate it later.
-            * Adding IS_CONVERSION_RATE = False, as conversion rate is not present in raw data.
-        '''
-        try:
-            self.df.insert(0, 'PARTNER', vendor_name)
-            self.df['REVENUE_USD'] = np.nan
-            self.df['IS_CONVERSION_RATE'] = False
-            return self.df
-        except Exception as e:
-            raise RuntimeError(f"Error adding columns in Amazon DataFrame: {e}")
-            
-            
-
-    def process_data_source(self):
-        '''Calling all function in specific order.'''
-        try:
-            self.drop_columns(self.columns_to_drop)
-            self.remove_quotations(self.sku_col)
-            self.process_new_title_and_drop_columns(self.title_columns, 
-                                                    self.new_title_col, 
-                                                    self.new_partner_col
-                                                   )
-            self.replace_titles(self.territory_col, self.sku_col, self.new_title_col)
-            self.calculate_retail_price(self.unit_retail_price,
-                                        self.retail_price,
-                                        self.quantity_col
-                                       )
-            self.aggregate_data(self.groupby_columns, self.agg_columns)
-            self.calculate_weighted_mean(self.unit_retail_price, 
-                                         self.unit_revenue, 
-                                         self.quantity_col, 
-                                         self.revenue_col, 
-                                         self.retail_price
-                                        )
-            self.rename_columns()
-            return self.add_columns_to_df('amazon')
+    def file_exists():
+        """
+        Check if the file exists in the S3 bucket.
         
-        except RuntimeError as e:
-            raise RuntimeError(f"Error in processing Amazon Data: {e}")
+        """
+        return fs.exists(path)
+
+    def get_existing_columns():
+        """
+        Get the columns from the existing file in S3.
+        
+        """
+        old_metadata = pd.read_csv(path)
+        return old_metadata.columns.tolist()
+
+    def reorder_columns(new_metadata, column_order):
+        """
+        Reorder the columns of the new metadata to match the existing file's column order.
+        
+        """
+        return new_metadata[column_order]
+
+    def write_data(new_metadata):
+        """
+        Write the new metadata to the file in S3.
+        
+        """
+        new_metadata.to_csv(path, index=False)
+        logging.info(f"Writing metadata is successful. {path}")
+
+    def append_data(new_metadata):
+        """
+        Append the new metadata to the existing file in S3.
+        
+        """
+        new_metadata.to_csv(path, index=False, mode='a', header=False)
+        logging.info(f"Appending metadata is successful. {path}")
+
+    try:
+        if file_exists():
+            # If File exists, get existing columns and reorder new data
+            existing_columns = get_existing_columns()
+            reordered_metadata = reorder_columns(new_processed_metadata, existing_columns)
+            append_data(reordered_metadata)
+        else:
+            # If File does not exist, write new data
+            write_data(new_processed_metadata)
+    except Exception as e:
+        logging.error(f"An error occurred while uploading metadata: {e}")
+    
+
+def log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all):
+    """
+    Function:
+        * Log file names of files not properly processed.
+    Parameters:
+        * new_raw_metadata: Metadata of raw files.
+        * new_processed_metadata_all: Metadata of processed files
+    Returns:
+        Filtered metadata Dataframe.
+    """
+    # Get metadata from current iteration
+    new_raw_metadata_df = raw_metadata(new_raw_metadata)
+    
+    # Get metadata after completion of data transformation
+    new_processed_metadata_all = pd.DataFrame(new_processed_metadata_all)
+    
+    # Concatenate new_raw_metadata_df and new_processed_metadata_all
+    combined_processed_metadata = concat_metadata(new_raw_metadata_df, new_processed_metadata_all)
+    
+    # Drop rows with any null values
+    combined_processed_metadata_filtered = combined_processed_metadata.dropna(how='any')
+    
+    # Get all files with null metadata
+    files_not_processed = pd.concat([combined_processed_metadata, combined_processed_metadata_filtered]) \
+                            .drop_duplicates(keep=False)
+    
+    # Log file names to log file
+    file_names = files_not_processed['raw_file_path'].tolist()
+    logging.info(f'List of all files which have null metadata: {file_names}')
+    return combined_processed_metadata_filtered
+
+def process_and_append_metrics_metadata(metric_metadata, metric_metadata_processed, metric_bucket_name, metric_file_key):
+    """
+    Function:
+        * Filters and appends metric metadata to s3.
+    Parameters:
+        * metric_metadata: Metric metadata of raw files.
+        * metric_metadata_processed : Metric metadata of processed files.
+        * metric_bucket_name: File bucket name.
+        * metric_file_key: File prefix key.
+
+    """
+    # Raw metrics data
+    raw_metrics_data = raw_metadata(metric_metadata)
+    
+    # Create DataFrame of processed metrics
+    processed_metrics_data = pd.DataFrame(metric_metadata_processed)
+    
+    # Combine metrics metadata
+    metrics_metadata = concat_metadata(raw_metrics_data, processed_metrics_data)
+    metrics_metadata = metrics_metadata.explode(['metric', 'raw_file_value', 'processed_file_value'])
+
+    # Add validation column
+    grouped = metrics_metadata.groupby(['partner', 'months_in_data', 'metric']).agg({'raw_file_value': 'sum', 'processed_file_value': 'mean'}) \
+                                                                 .reset_index()
+    metrics_metadata = pd.merge(metrics_metadata, grouped, on=['partner', 'months_in_data', 'metric'], suffixes=('', '_grouped'))
+    
+    # Round the sum and mean values
+    metrics_metadata['raw_file_value_grouped'] = metrics_metadata['raw_file_value_grouped'].astype(float).round()
+    metrics_metadata['processed_file_value_grouped'] = metrics_metadata['processed_file_value_grouped'].astype(float).round()
+    
+    # Perform validation
+    metrics_metadata['validation_match_status'] = metrics_metadata['raw_file_value_grouped'] == metrics_metadata['processed_file_value_grouped']
+    
+    # Drop intermediate columns except for the validation column
+    metrics_metadata.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
+    
+    # Append metric metadata to S3
+    append_metadata_to_csv(metrics_metadata, metric_bucket_name, metric_file_key)
+
+    # Log success message
+    logging.info(f"Metrics metadata successfully appended to S3 bucket: {metric_bucket_name}/{metric_file_key}")
+    
+    
+try:
+    # Load and execute all Data Processing Scripts
+    for key in script_keys:
+        script_content = read_script_from_s3(script_bucket_name, key)
+        exec(script_content)
+    
+    # read new files to process
+    files_to_process = read_new_files(new_files_bucket_name, new_files_file_key)
+                                                
+    # Read and process data (if no data to process return empty dataframe)
+    # Read data scripts are defined in each partner data processing script.
+    try:
+        df_amazon = read_data_from_s3_amazon(files_to_process, input_bucket_name)
+        amazon_monthly_data = DtoDataProcessAmazon('Amazon', df_amazon)
+        df_transformed_amazon = amazon_monthly_data.process_data_source()
+        logging.info(f"Amazon Data Processing success")
+    except Exception as e:
+        logging.error(f"An error occurred during Amazon data processing: {e}")
+        df_transformed_amazon = pd.DataFrame()
+        
+    try:
+        df_itunes = read_data_from_s3_itunes(files_to_process, input_bucket_name)
+        itunes_monthly_data = DtoDataProcessItunes('Itunes', df_itunes)
+        df_transformed_itunes = itunes_monthly_data.process_data_source()
+        logging.info(f"Itunes Data Processing success")
+    except Exception as e:
+        logging.error(f"An error occurred during iTunes data processing: {e}")
+        df_transformed_itunes = pd.DataFrame()
+        
+    try:
+        df_google = read_data_from_s3_google(files_to_process, input_bucket_name)
+        google_monthly_data = DtoDataProcessGoogle('Google', df_google)
+        df_transformed_google = google_monthly_data.process_data_source()
+        logging.info(f"Google Data Processing success")
+    except Exception as e:
+        logging.error(f"An error occurred during Google data processing: {e}")
+        df_transformed_google = pd.DataFrame()
+
+
+    # Merge Dataframes
+    try:
+        final_df = merge_dataframes(
+            df_amazon = df_transformed_amazon, 
+            df_itunes = df_transformed_itunes, 
+            df_google = df_transformed_google
+        )
+        logging.info(f"Dataframes merged successfully")
+        if final_df.empty:
+            upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+            raise RuntimeError("Merged dataframe is empty.")
+        
+    except Exception as e:
+        logging.error(f"An error occurred during data merging: {e}")
+        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("Failed to Merge Datasets.") from e
+
+    # Load currency data from S3 and map in final_df
+    final_df = process_currency_and_mapping(currency_bucket_name, currency_file_key, final_df)
+    
+    final_df = final_df.reindex(columns=[
+        'PARTNER', 'VENDOR_ASSET_ID', 'TERRITORY', 'TRANSACTION_DATE', 'PARTNER_TITLE', 'TITLE', 
+        'TRANSACTION_FORMAT', 'MEDIA_FORMAT', 'TRANSACTION_TYPE', 'PURCHASE_LOCATION', 'VIDEO_CATEGORY', 
+        'CYS_EPISODE_COUNT', 'QUANTITY', 'UNIT_RETAIL_PRICE_NATIVE', 'UNIT_RETAIL_PRICE_USD', 'RETAIL_PRICE_NATIVE', 
+        'RETAIL_PRICE_USD', 'UNIT_REVENUE_NATIVE', 'UNIT_REVENUE_USD', 'REVENUE_NATIVE', 'REVENUE_USD', 'CONVERSION_RATE',
+        'IS_CONVERSION_RATE'
+    ])
+    
+    # Write Transformed Data to S3 with partitions
+    try:
+        write_data_to_s3(final_df, output_bucket_name, output_folder_key)
+    except Exception as e:
+        logging.error(f"An error occurred during data writing: {e}")
+        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("Failed to Write Data.") from e
+    
+    # Log file names which are read  but not processed properly
+    combined_processed_metadata_filtered = log_files_with_null_metadata(new_raw_metadata, new_processed_metadata_all)
+
+    # Put metadata file in s3
+    append_metadata_to_csv(combined_processed_metadata_filtered, processed_metadata_bucket, processed_metadata_file_key)
+    
+    # Process and append metrics data
+    process_and_append_metrics_metadata(metric_metadata, metric_metadata_processed, metric_bucket_name, metric_file_key)
+    
+except Exception as e:
+    logging.error(f"An error occurred in the main script: {e}")
+    upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+    raise e
+    
+upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
