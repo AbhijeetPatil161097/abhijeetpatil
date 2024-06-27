@@ -805,7 +805,7 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
 
     raw_metrics_data = raw_metrics_df(metric_metadata)
     processed_metrics_data = processed_metrics_df(metric_metadata_processed)
-    metrics_metadata_filtered, dropped_rows = concat_and_explode(raw_metrics_data, processed_metrics_data)
+    metrics_metadata_filtered = concat_and_explode(raw_metrics_data, processed_metrics_data)
     metrics_metadata_filtered = validation_column(metrics_metadata_filtered)
 
     # Append metadata file to s3
