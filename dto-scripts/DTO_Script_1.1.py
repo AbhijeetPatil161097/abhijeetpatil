@@ -98,39 +98,42 @@ def read_data_from_s3_amazon(bucket_name, prefix):
 
         # Iterate each file from S3 bucket
         for file_path in files:
-            file_key = file_path.split(f'{bucket_name}/')[1]
-            file_name = os.path.basename(file_key)
-            logging.info(f"Processing started for file: {file_key}")
+            try:
+                file_key = file_path.split(f'{bucket_name}/')[1]
+                file_name = os.path.basename(file_key)
+                logging.info(f"Processing started for file: {file_key}")
 
-            # Determine file extension
-            file_extension = os.path.splitext(file_name)[1].lower()
+                # Determine file extension
+                file_extension = os.path.splitext(file_name)[1].lower()
 
-            # Read file and create DataFrame
-            df = _read_file_from_s3(bucket_name, file_key, file_extension)
+                # Read file and create DataFrame
+                df = _read_file_from_s3(bucket_name, file_key, file_extension)
 
-            # Additional processing specific to your use case (e.g., creating TRANSACTION_DATE column)
-            file_name_month = _extract_date_from_file_key(file_key, partner)
-            df['TRANSACTION_DATE'] = file_name_month
+                # Additional processing specific to your use case (e.g., creating TRANSACTION_DATE column)
+                file_name_month = _extract_date_from_file_key(file_key, partner)
+                df['TRANSACTION_DATE'] = file_name_month
 
-            # Collect metadata
-            file_row_count = len(df)
-            file_info = s3.info(f"{bucket_name}/{file_key}")
-            file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-            unique_months = ','.join(df['TRANSACTION_DATE'].unique())
+                # Collect metadata
+                file_row_count = len(df)
+                file_info = s3.info(f"{bucket_name}/{file_key}")
+                file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
+                unique_months = ','.join(df['TRANSACTION_DATE'].unique())
 
-            # Append metadata to list
-            _collect_file_metadata(bucket_name, 
-                                   file_key, 
-                                   file_name, 
-                                   file_creation_date,
-                                   file_name_month,
-                                   partner,
-                                   unique_months,
-                                   file_row_count
-                                  )
-            
-            logging.info(f"Raw Metadata appended for file: {file_key}")
+                # Append metadata to list
+                _collect_file_metadata(bucket_name, 
+                                       file_key, 
+                                       file_name, 
+                                       file_creation_date,
+                                       file_name_month,
+                                       partner,
+                                       unique_months,
+                                       file_row_count
+                                      )
 
+                logging.info(f"Raw Metadata appended for file: {file_key}")
+            except:
+                logging.error(f"Error reading amazon file:{file_key})
+                continue
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
