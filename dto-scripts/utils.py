@@ -796,7 +796,7 @@ def process_and_append_metrics_metadata(metric_metadata, metric_metadata_process
         metrics_metadata_filtered['processed_file_value_grouped'] = metrics_metadata_filtered['processed_file_value_grouped'].astype(float).round()
 
         # Perform validation
-        metrics_metadata_filtered['validation'] = metrics_metadata_filtered['raw_file_value_grouped'] == metrics_metadata_filtered['processed_file_value_grouped']
+        metrics_metadata_filtered['validation_match_status'] = metrics_metadata_filtered['raw_file_value_grouped'] == metrics_metadata_filtered['processed_file_value_grouped']
         
         # Drop intermediate columns except for the validation column
         metrics_metadata_filtered.drop(columns=['raw_file_value_grouped', 'processed_file_value_grouped'], inplace=True)
