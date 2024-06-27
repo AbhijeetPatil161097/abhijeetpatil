@@ -42,14 +42,16 @@ sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
+s3 = s3fs.S3FileSystem()
 
 # Import utils.py
-sc.addPyFile("s3://cdr-research/Projects/DTO/dto-scripts/utils.py")
-from utils import *
+utils_script = s3.cat(f"s3://cdr-research/Projects/DTO/dto-scripts/utils.py").decode('utf-8')
+exec(utils_script)
 
 # Import paths.py
-sc.addPyFile("s3://cdr-research/Projects/DTO/dto-scripts/paths.py")
-from paths import *
+paths_script = s3.cat(f"s3://cdr-research/Projects/DTO/dto-scripts/paths.py").decode('utf-8')
+exec(paths_script)
+
 
 # Initialize log file
 log_file_path = 'glue_job_log.txt'
@@ -67,13 +69,9 @@ except Exception as e:
     raise RuntimeError("Failed to initialize Glue job.") from e
 
 
-s3 = s3fs.S3FileSystem()
-
 # Create empty list for new raw files metadata
 new_raw_metadata = []
         
-# Function to Read data from S3
-# For Amazon
 
 def read_data_from_s3_amazon(bucket_name, prefix):
     """
@@ -86,36 +84,34 @@ def read_data_from_s3_amazon(bucket_name, prefix):
     Returns:
     - List of dictionaries containing metadata information for each file.
     """
-    partner = 'amazon'
-    new_raw_metadata_amazon = []
-    
-    s3 = s3fs.S3FileSystem(anon=False)
-    
-    # Getting list of all available files in S3 bucket
-    files = s3.glob(f"{bucket_name}/{prefix}/*")
-    
-    # Iterate each file from S3 bucket
-    for file_path in files:
-        file_key = os.path.relpath(file_path, f"{bucket_name}/{prefix}/")
-        file_name = os.path.basename(file_key)
-        
-        try:
+    try:
+        partner = 'amazon'
+
+        # Getting list of all available files in S3 bucket
+        files = s3.find(f"{bucket_name}/{prefix}/")
+
+        # Iterate each file from S3 bucket
+        for file_path in files:
+            file_key = file_path.split(f'{bucket_name}/')[1]
+            file_name = os.path.basename(file_key)
+            logging.info(f"Processing started for file: {file_key}")
+
             # Determine file extension
             file_extension = os.path.splitext(file_name)[1].lower()
-            
+
             # Read file and create DataFrame
             df = _read_file_from_s3(bucket_name, file_key, file_extension)
-            
+
             # Additional processing specific to your use case (e.g., creating TRANSACTION_DATE column)
             file_name_month = _extract_date_from_file_key(file_key, partner)
             df['TRANSACTION_DATE'] = file_name_month
-            
+
             # Collect metadata
             file_row_count = len(df)
             file_info = s3.info(f"{bucket_name}/{file_key}")
             file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
             unique_months = ','.join(df['TRANSACTION_DATE'].unique())
-            
+
             # Append metadata to list
             _collect_file_metadata(bucket_name, 
                                    file_key, 
@@ -127,10 +123,11 @@ def read_data_from_s3_amazon(bucket_name, prefix):
                                    file_row_count
                                   )
             
-        except Exception as e:
-            logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
-            upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
-            raise RuntimeError("Failed to read data from S3 Amazon.") from e  
+            logging.info(f"Raw Metadata appended for file: {file_key}")
+
+    except Exception as e:
+        logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
+
 
 
 # For Itunes
@@ -174,12 +171,13 @@ def read_data_from_s3_itunes(bucket_name, prefix):
         '''
         try:
             partner='itunes'
-            files = s3.glob(f"{bucket_name}/{prefix}/*")
+            files = s3.find(f"{bucket_name}/{prefix}/")
     
             # Iterate each file from S3 bucket
             for file_path in files:
-                file_key = os.path.relpath(file_path, f"{bucket_name}/{prefix}/")
+                file_key = file_path.split(f'{bucket_name}/')[1]
                 file_name = os.path.basename(file_key)
+                logging.info(f"Processing started for file: {file_key}")
                 
                 # Get file creation date using s3fs
                 file_info = s3.info(file_key)
@@ -265,6 +263,7 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                     file_info = s3.info(f"{bucket_name}/{file_key}")
                     file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
                     file_row_count = len(df)
+                    
                     # Append metadata
                     unique_months = ','.join(df['Start Date'].unique())
                     _collect_file_metadata(bucket_name, 
@@ -276,6 +275,8 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                                        unique_months,
                                        file_row_count
                                       )
+                    logging.info(f"Raw Metadata appended for file: {file_key}")
+                    
                     if (df['Start Date'] == df['FILE_NAME_DATE']).all():
                         continue
                     else:
@@ -286,9 +287,8 @@ def read_data_from_s3_itunes(bucket_name, prefix):
             logging.error(f"Error reading data from S3 bucket: {e}")
     except Exception as e:
         logging.error(f"An error occurred while reading data from S3 Itunes: {e}")
-        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
-        raise RuntimeError("Failed to read data from S3 itunes.") from e  
-        
+      
+    
 
 # For Google
 def read_data_from_s3_google(bucket_name, prefix):
@@ -308,11 +308,12 @@ def read_data_from_s3_google(bucket_name, prefix):
     pattern = re.compile(r'\s*\(.+')
     
     try:
-        files = s3.glob(f"{bucket_name}/{prefix}/*")
+        files = s3.find(f"{bucket_name}/{prefix}/")
         # Iterate each file from S3 bucket
         for file_path in files:
-            file_key = os.path.relpath(file_path, f"{bucket_name}/{prefix}/")
+            file_key = file_path.split(f'{bucket_name}/')[1]
             file_name = os.path.basename(file_key)
+            logging.info(f"Processing started for file: {file_key}")
             
             # Get file creation date using s3fs
             file_info = s3.info(file_key)
@@ -351,12 +352,14 @@ def read_data_from_s3_google(bucket_name, prefix):
                                     unique_months,
                                     file_row_count
                                     )
+            logging.info(f"Raw Metadata appended for file: {file_key}")
+            
             if (df['Transaction Date'] == df['FILE_NAME_DATE']).all():
                 continue
             else:
                 logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
     except Exception as e:
-        raise ValueError(f"No new files to process: {e}")
+        logging.error(f"An error occurred while reading data from S3 Google: {e}")
 
 # Trigger DTO_Script_2 glue job
 def trigger_script_2():
