@@ -132,7 +132,7 @@ def read_data_from_s3_amazon(bucket_name, prefix):
 
                 logging.info(f"Raw Metadata appended for file: {file_key}")
             except:
-                logging.error(f"Error reading amazon file:{file_key})
+                logging.error(f"Error reading amazon file:{file_key}")
                 continue
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
