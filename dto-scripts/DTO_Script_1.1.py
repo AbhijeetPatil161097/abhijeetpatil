@@ -398,10 +398,10 @@ def main():
         read_data_from_s3_amazon(input_bucket_name, input_folder_key_amazon)
         
         # Itunes data
-        read_data_from_s3_itunes(input_bucket_name, input_folder_key_itunes)
+        #read_data_from_s3_itunes(input_bucket_name, input_folder_key_itunes)
         
         # Google data
-        read_data_from_s3_google(input_bucket_name, input_folder_key_google)
+        #read_data_from_s3_google(input_bucket_name, input_folder_key_google)
         
         # Get existing Metadata
         existing_metadata_df = read_existing_metadata(metadata_bucket, processed_metadata_file_key)
