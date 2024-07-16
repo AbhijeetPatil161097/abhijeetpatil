@@ -1,9 +1,3 @@
-import os
-import logging
-import pandas as pd
-import numpy as np
-import s3fs
-
 def read_data_from_s3_amazon(files_to_process, bucket_name):
     """
     Function:
