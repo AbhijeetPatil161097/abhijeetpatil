@@ -1285,7 +1285,7 @@ def write_data_to_s3(df, bucket_name, file_key):
 def trigger_script_2():
     try:
         glue_client = boto3.client('glue')
-        glue_job_name = 'DTO_Script_2'
+        glue_job_name = 'DTO_Script_2.1'
                     
         # Start the Glue job
         response = glue_client.start_job_run(JobName=glue_job_name)
