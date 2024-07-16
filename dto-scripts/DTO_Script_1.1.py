@@ -44,9 +44,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from function_defination import *
-from paths import *
-
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
