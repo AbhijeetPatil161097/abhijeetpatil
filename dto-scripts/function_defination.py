@@ -1,9 +1,3 @@
-import logging
-import s3fs
-import pandas as pd
-from datetime import datetime
-
-s3 = s3fs.S3FileSystem()
 
 #-------------------------------------------------------------------------------------------------------------------------
 # log file related functions
