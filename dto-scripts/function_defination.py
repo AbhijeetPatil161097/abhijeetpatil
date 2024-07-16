@@ -933,10 +933,7 @@ def read_and_append_itunes_metadata(bucket_name, prefix):
     
             # Iterate each file from S3 bucket
             for file_path in files:
-                logging.info(f"bucket_name = {bucket_name}")
                 file_key = file_path.split(f'{bucket_name}/')[1]
-
-                logging.info(f"File key, {file_key}")
                 file_name = os.path.basename(file_key)
                 logging.info(f"Processing started for file: {file_key}")
                 
