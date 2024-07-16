@@ -1130,8 +1130,8 @@ def read_data_from_s3_google(bucket_name, prefix):
                    continue
                else:
                    logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
-           except:
-              logging.error(f"Error reading google file:{file_key}")
+           except Exception as e:
+              logging.error(f"Error reading google file:{e}")
               continue 
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Google: {e}")
