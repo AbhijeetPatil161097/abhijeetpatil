@@ -789,21 +789,26 @@ def _extract_date_from_file_key(file_key, partner):
         * Date in yyyy-mm format.
     
     """
-    if partner == 'amazon':
-        return '-'.join(file_key.split('_')[-1].split('-')[:2])
-    
-    if partner == 'itunes':
-        if file_key.endswith('.gz'):
-            date_match = re.search(r'(\d{8})\.txt\.gz$|(\d{8})\.gz$', file_key)
-        else:
-            date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
+    try:
+        if partner == 'amazon':
+            return '-'.join(file_key.split('_')[-1].split('-')[:2])
         
-        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m')
-                if date_match else None).strftime('%Y-%m')
-
-    if partner == 'google':
-        return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')     
+        if partner == 'itunes':
+            if file_key.endswith('.gz'):
+                date_match = re.search(r'(\d{8})\.txt\.gz$|(\d{8})\.gz$', file_key)
+            else:
+                date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
+            
+            return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m')
+                    if date_match else None).strftime('%Y-%m')
     
+        if partner == 'google':
+            return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')  
+    except:
+        logging.error(f"An error occurred while collecting file date from {file key}: {e}")
+        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
+        raise RuntimeError("An error occurred while collecting file date from.") from e
+        
 
 # Reindex columns
 def reindex_dataframe(df):
@@ -1083,13 +1088,14 @@ def read_data_from_s3_google(bucket_name, prefix):
                file_key = file_path.split(f'{bucket_name}/')[1]
                file_name = os.path.basename(file_key)
                logging.info(f"Processing started for file: {file_key}")
-
-               logging.info(f"step 1")
+               
                # Get file creation date using s3fs
                file_info = s3.info(file_key)
+               logging.info(f"File info gathered")
                file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
+               logging.info(f"file creation date gathered")
                file_name_month = _extract_date_from_file_key(file_key, partner)
-               logging.info(f"step 2")
+               logging.info(f"file name month gathered")
                # Read and process other file formats
                file_extension = os.path.splitext(file_key)[1].lower()
                df = _read_file_from_s3(bucket_name, file_key, file_extension)
