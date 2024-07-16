@@ -1,3 +1,9 @@
+import logging
+import s3fs
+import pandas as pd
+from datetime import datetime
+
+s3 = s3fs.S3FileSystem()
 
 #-------------------------------------------------------------------------------------------------------------------------
 # log file related functions
@@ -72,7 +78,7 @@ def _collect_file_metadata(bucket_name,
             'raw_file_row_count': file_row_count
         })
     except Exception as e:
-        logging.error(f"Failed to append metadata in list new_raw_metadata: {file_key}, Error: {e}")
+        logging.error(f"Failed to append metadata in list new_raw_metadata_amazon: {file_key}, Error: {e}")
         
 
 
@@ -783,26 +789,21 @@ def _extract_date_from_file_key(file_key, partner):
         * Date in yyyy-mm format.
     
     """
-    try:
-        if partner == 'amazon':
-            return '-'.join(file_key.split('_')[-1].split('-')[:2])
-        
-        if partner == 'itunes':
-            if file_key.endswith('.gz'):
-                date_match = re.search(r'(\d{8})\.txt\.gz$|(\d{8})\.gz$', file_key)
-            else:
-                date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
-            
-            return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m')
-                    if date_match else None).strftime('%Y-%m')
+    if partner == 'amazon':
+        return '-'.join(file_key.split('_')[-1].split('-')[:2])
     
-        if partner == 'google':
-            return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')  
-    except:
-        logging.error(f"An error occurred while collecting file date from: {e}")
-        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
-        raise RuntimeError("An error occurred while collecting file date from.") from e
+    if partner == 'itunes':
+        if file_key.endswith('.gz'):
+            date_match = re.search(r'(\d{8})\.txt\.gz$|(\d{8})\.gz$', file_key)
+        else:
+            date_match = re.search(r'_(\d{8})|_(\d{2})(\d{2})_', file_key)
         
+        return (datetime.strptime(date_match.group(1) or f"20{date_match.group(3)}-{date_match.group(2)}", '%Y-%m')
+                if date_match else None).strftime('%Y-%m')
+
+    if partner == 'google':
+        return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')     
+    
 
 # Reindex columns
 def reindex_dataframe(df):
@@ -834,7 +835,7 @@ def reindex_dataframe(df):
 # Data reading, processing and writing related functions
 
 # Read amazon data (for DTO_Script_1)
-def read_data_from_s3_amazon(bucket_name, prefix):
+def read_and_append_amazon_metadata(bucket_name, prefix):
     """
     Function to read all Amazon files from S3 and collect metadata.
     
@@ -886,8 +887,8 @@ def read_data_from_s3_amazon(bucket_name, prefix):
                                       )
 
                 logging.info(f"Raw Metadata appended for file: {file_key}")
-            except:
-                logging.error(f"Error reading amazon file:{file_key}")
+            except Exception as e:
+                logging.error(f"Error reading amazon file:{file_key}, {e}")
                 continue
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Amazon: {e}")
@@ -896,7 +897,7 @@ def read_data_from_s3_amazon(bucket_name, prefix):
 
 
 # Read itunes data (for DTO_Script_1)
-def read_data_from_s3_itunes(bucket_name, prefix):
+def read_and_append_itunes_metadata(bucket_name, prefix):
     """
     Function: 
     Reads all itunes files and appends metadata to an empty list new_raw_metadata_itunes
@@ -907,7 +908,6 @@ def read_data_from_s3_itunes(bucket_name, prefix):
     
     """
     try:
-        logging.info(f"step01")
         '''
         s3 = boto3.client('s3')
         
@@ -936,19 +936,22 @@ def read_data_from_s3_itunes(bucket_name, prefix):
         }
         '''
         try:
-            logging.info(f"step02")
             partner='itunes'
             files = s3.find(f"{bucket_name}/{prefix}/")
-            logging.info(f"step03")
+    
             # Iterate each file from S3 bucket
             for file_path in files:
+                logging.info(f"bucket_name = {bucket_name}")
                 file_key = file_path.split(f'{bucket_name}/')[1]
+
+                logging.info(f"File key, {file_key}")
                 file_name = os.path.basename(file_key)
                 logging.info(f"Processing started for file: {file_key}")
+                
                 # Get file creation date using s3fs
                 file_info = s3.info(file_key)
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-                logging.info(f"Step file_creation_date")
+
                 '''
                 # Handle .gz files
                 if file_key.endswith('.gz'):
@@ -1003,20 +1006,19 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                 # Handle other file formats
                 #else:
                 try:
-                    logging.info(f"Step 0")
                     file_name_month = _extract_date_from_file_key(file_key, partner)
-                    logging.info(f"Step 0.1")
+                    
                     # Read and process other file formats
                     file_extension = os.path.splitext(file_key)[1].lower()
                     df = _read_file_from_s3(bucket_name, file_key, file_extension)
                     df = df.dropna(subset = ['Title', 'Vendor Identifier'])
-                    logging.info(f"Step 1")
+                    
                     if df is None:
                         logging.error(f"Itunes file is empty or could not be read: {file_key}")
                         continue
                     df['Start Date'] = pd.to_datetime(df['Start Date'], format = '%m/%d/%Y')
                     df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
-                    logging.info(f"Step 2")
+                        
                     # Raise error if difference between Start Date and End Date is more  than 45 Days.
                     date_diff = (df['End Date'] - df['Start Date']).dt.days
                     if (date_diff > 45).any():
@@ -1024,13 +1026,13 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                             
                     df['Start Date'] = df['Start Date'] + (df['End Date'] - df['Start Date']) / 2
                     df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
-                    logging.info(f"Step 3")
+                        
                     # Get unique months from DataFrame. We are using Start Date as Transaction Date.
                     unique_months = ','.join(df['Start Date'].unique())
                     file_info = s3.info(f"{bucket_name}/{file_key}")
                     file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
                     file_row_count = len(df)
-                    logging.info(f"Step 4")
+                    
                     # Append metadata
                     unique_months = ','.join(df['Start Date'].unique())
                     _collect_file_metadata(bucket_name, 
@@ -1060,7 +1062,7 @@ def read_data_from_s3_itunes(bucket_name, prefix):
     
 
 # Read google data (for DTO_Script_1)
-def read_data_from_s3_google(bucket_name, prefix):
+def read_and_append_google_metadata(bucket_name, prefix):
     """
     Function: 
     Reads all google files and appends metadata to an empty list new_raw_metadata_google
@@ -1080,20 +1082,16 @@ def read_data_from_s3_google(bucket_name, prefix):
         files = s3.find(f"{bucket_name}/{prefix}/")
         # Iterate each file from S3 bucket
         for file_path in files:
-           try:
+            try:
                file_key = file_path.split(f'{bucket_name}/')[1]
-               logging.info(f"File {file_key}")
                file_name = os.path.basename(file_key)
-               logging.info(f"File {file_name}")
                logging.info(f"Processing started for file: {file_key}")
                
                # Get file creation date using s3fs
                file_info = s3.info(file_key)
-               logging.info(f"File info gathered")
                file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-               logging.info(f"file creation date gathered")
                file_name_month = _extract_date_from_file_key(file_key, partner)
-               logging.info(f"file name month gathered")
+   
                # Read and process other file formats
                file_extension = os.path.splitext(file_key)[1].lower()
                df = _read_file_from_s3(bucket_name, file_key, file_extension)
@@ -1101,7 +1099,7 @@ def read_data_from_s3_google(bucket_name, prefix):
                df = df.iloc[country_index:]
                df.columns = df.iloc[0]
                df = df[1:]
-               logging.info(f"step 3")
+               
                # Convert column headers to strings explicitly
                df.columns = [re.sub(pattern, '', col) for col in df.columns]
                df = df.dropna(subset = ['Transaction Date', 'YouTube Video ID'])
@@ -1109,7 +1107,7 @@ def read_data_from_s3_google(bucket_name, prefix):
                df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
                df['QUANTITY'] = 1
                file_row_count = len(df)
-               logging.info(f"step 4")
+               
                # Get unique months from DataFrame.
                unique_months = ','.join(df['Transaction Date'].unique())
                file_info = s3.info(f"{bucket_name}/{file_key}")
@@ -1132,8 +1130,8 @@ def read_data_from_s3_google(bucket_name, prefix):
                    continue
                else:
                    logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
-           except Exception as e:
-              logging.error(f"Error reading google file:{e}")
+            except Exception as e:
+              logging.error(f"Error reading google file:{file_key}, {e}")
               continue 
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Google: {e}")
@@ -1290,7 +1288,7 @@ def write_data_to_s3(df, bucket_name, file_key):
 def trigger_script_2():
     try:
         glue_client = boto3.client('glue')
-        glue_job_name = 'DTO_Script_2.1'
+        glue_job_name = 'DTO_Script_2'
                     
         # Start the Glue job
         response = glue_client.start_job_run(JobName=glue_job_name)
