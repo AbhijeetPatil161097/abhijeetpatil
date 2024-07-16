@@ -75,16 +75,16 @@ except Exception as e:
     raise RuntimeError("Failed to initialize Glue job.") from e
 
 
-       
+# Create empty list for new raw files metadata
+new_raw_metadata = []
+
+
 # Create main function
 def main():
     """
     This function orchestrates all above functions
     """
     try:
-        # Create empty list for new raw files metadata
-        new_raw_metadata = []
-
         # Amazon data
         read_data_from_s3_amazon(input_bucket_name, input_folder_key_amazon)
         
