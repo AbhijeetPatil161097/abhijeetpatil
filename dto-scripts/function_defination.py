@@ -907,6 +907,7 @@ def read_data_from_s3_itunes(bucket_name, prefix):
     
     """
     try:
+        logging.info(f"step01")
         '''
         s3 = boto3.client('s3')
         
@@ -935,9 +936,10 @@ def read_data_from_s3_itunes(bucket_name, prefix):
         }
         '''
         try:
+            logging.info(f"step02")
             partner='itunes'
             files = s3.find(f"{bucket_name}/{prefix}/")
-    
+            logging.info(f"step03")
             # Iterate each file from S3 bucket
             for file_path in files:
                 file_key = file_path.split(f'{bucket_name}/')[1]
