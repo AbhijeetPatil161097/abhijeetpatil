@@ -4,17 +4,17 @@ Defining necessary paths
 
 # Log file paths
 log_file_bucket_name = 'cdr-research'
-log_file_key = 'Projects/DTO/Misc/glue_job_log.txt'
+log_file_key = 'Projects/DTO/test/glue_job_log.txt'
 
 # Matadata files paths
 metadata_bucket = 'cdr-research'
 
-raw_metadata_file_key = 'Projects/DTO/Metadata/raw_metadata.csv'
-processed_metadata_file_key = 'Projects/DTO/Metadata/processed_metadata.csv'
-metric_file_key = 'Projects/DTO/Metadata/metric_validation.csv'
+raw_metadata_file_key = 'Projects/DTO/test/raw_metadata.csv'
+processed_metadata_file_key = 'Projects/DTO/test/processed_metadata.csv'
+metric_file_key = 'Projects/DTO/test/metric_validation.csv'
 
 # Files to process path
-files_to_process_file_key = 'Projects/DTO/Misc/new_files_to_process.csv'
+files_to_process_file_key = 'Projects/DTO/test/new_files_to_process.csv'
 
 # Input data paths
 input_bucket_name = 'azv-s3str-pmsa1'
