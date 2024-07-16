@@ -1083,12 +1083,13 @@ def read_data_from_s3_google(bucket_name, prefix):
                file_key = file_path.split(f'{bucket_name}/')[1]
                file_name = os.path.basename(file_key)
                logging.info(f"Processing started for file: {file_key}")
-               
+
+               logging.info(f"step 1")
                # Get file creation date using s3fs
                file_info = s3.info(file_key)
                file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
                file_name_month = _extract_date_from_file_key(file_key, partner)
-   
+               logging.info(f"step 2")
                # Read and process other file formats
                file_extension = os.path.splitext(file_key)[1].lower()
                df = _read_file_from_s3(bucket_name, file_key, file_extension)
@@ -1096,7 +1097,7 @@ def read_data_from_s3_google(bucket_name, prefix):
                df = df.iloc[country_index:]
                df.columns = df.iloc[0]
                df = df[1:]
-               
+               logging.info(f"step 3")
                # Convert column headers to strings explicitly
                df.columns = [re.sub(pattern, '', col) for col in df.columns]
                df = df.dropna(subset = ['Transaction Date', 'YouTube Video ID'])
@@ -1104,7 +1105,7 @@ def read_data_from_s3_google(bucket_name, prefix):
                df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
                df['QUANTITY'] = 1
                file_row_count = len(df)
-               
+               logging.info(f"step 4")
                # Get unique months from DataFrame.
                unique_months = ','.join(df['Transaction Date'].unique())
                file_info = s3.info(f"{bucket_name}/{file_key}")
@@ -1128,7 +1129,7 @@ def read_data_from_s3_google(bucket_name, prefix):
                else:
                    logging.error(f"Transaction Date does not match FILE_NAME_DATE for: {file_key}")
            except:
-              logging.error(f"Error reading amazon file:{file_key}")
+              logging.error(f"Error reading google file:{file_key}")
               continue 
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Google: {e}")
