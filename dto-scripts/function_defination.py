@@ -1057,7 +1057,8 @@ def read_and_append_itunes_metadata(bucket_name, prefix):
                    logging.error(f"Error processing file {file_key}: {e}")
                    continue
         except Exception as e:
-           logging.error(f"Error reading data from S3 bucket: {e}")           
+            logging.error(f"Error reading itunes data from S3 bucket: {e}")
+            continue 
     except Exception as e:
        logging.error(f"An error occurred while reading data from S3 Itunes: {e}")
        upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
