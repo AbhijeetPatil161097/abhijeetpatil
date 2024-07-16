@@ -949,11 +949,10 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                 file_key = file_path.split(f'{bucket_name}/')[1]
                 file_name = os.path.basename(file_key)
                 logging.info(f"Processing started for file: {file_key}")
-                
                 # Get file creation date using s3fs
                 file_info = s3.info(file_key)
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
-
+                logging.info(f"Step file_creation_date")
                 '''
                 # Handle .gz files
                 if file_key.endswith('.gz'):
@@ -1008,8 +1007,9 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                 # Handle other file formats
                 #else:
                 try:
+                    logging.info(f"Step 0")
                     file_name_month = _extract_date_from_file_key(file_key, partner)
-                    
+                    logging.info(f"Step 0.1")
                     # Read and process other file formats
                     file_extension = os.path.splitext(file_key)[1].lower()
                     df = _read_file_from_s3(bucket_name, file_key, file_extension)
