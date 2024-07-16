@@ -67,11 +67,11 @@ def main():
         
         files_to_process = read_new_files(metadata_bucket, files_to_process_file_key)
         
-        df_amazon = process_amazon_data(files_to_process, input_bucket_name)
-        df_itunes = process_itunes_data(files_to_process, input_bucket_name)
-        df_google = process_google_data(files_to_process, input_bucket_name)
+        df_amazon = read_data_from_s3_amazon(files_to_process, input_bucket_name)
+        df_itunes = read_data_from_s3_itunes(files_to_process, input_bucket_name)
+        df_google = read_data_from_s3_google(files_to_process, input_bucket_name)
         
-        final_df = merge_data(df_amazon, df_itunes, df_google)
+        final_df = merge_dataframes(df_amazon, df_itunes, df_google)
         
         currency_df = get_currency_df(currency_bucket_name, currency_file_key)
         
