@@ -949,7 +949,7 @@ def read_and_append_itunes_metadata(bucket_name, prefix):
                 logging.info(f"Processing started for file: {file_key}")
                 
                 # Get file creation date using s3fs
-                file_info = s3.info(file_key)
+                file_info = s3.info(f"{bucket_name}/{file_key}")
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
 
                 '''
@@ -1094,7 +1094,7 @@ def read_and_append_google_metadata(bucket_name, prefix):
                 
                 # Get file creation date using s3fs
                 logging.info(f"start 1")
-                file_info = s3.info(file_key)
+                file_info = s3.info(f"{bucket_name}/{file_key}")
                 logging.info(f"start 2")
                 file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
                 logging.info(f"file_creation_date={file_creation_date}")
