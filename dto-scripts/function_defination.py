@@ -78,7 +78,7 @@ def _collect_file_metadata(bucket_name,
             'raw_file_row_count': file_row_count
         })
     except Exception as e:
-        logging.error(f"Failed to append metadata in list new_raw_metadata_amazon: {file_key}, Error: {e}")
+        logging.error(f"Failed to append metadata in list new_raw_metadata: {file_key}, Error: {e}")
         
 
 
