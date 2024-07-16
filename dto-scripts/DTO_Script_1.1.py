@@ -44,6 +44,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+from function_defination import *
+from paths import *
+
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
@@ -78,7 +81,6 @@ except Exception as e:
 # Create empty list for new raw files metadata
 new_raw_metadata = []
 
-
 # Create main function
 def main():
     """
@@ -86,13 +88,13 @@ def main():
     """
     try:
         # Amazon data
-        read_data_from_s3_amazon(input_bucket_name, input_folder_key_amazon)
+        read_and_append_amazon_metadata(input_bucket_name, input_folder_key_amazon)
         
         # Itunes data
-        read_data_from_s3_itunes(input_bucket_name, input_folder_key_itunes)
+        read_and_append_itunes_metadata(input_bucket_name, input_folder_key_itunes)
         
         # Google data
-        read_data_from_s3_google(input_bucket_name, input_folder_key_google)
+        read_and_append_google_metadata(input_bucket_name, input_folder_key_google)
         
         # Get existing Metadata
         existing_metadata_df = read_existing_metadata(metadata_bucket, processed_metadata_file_key)
