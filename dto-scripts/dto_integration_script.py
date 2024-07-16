@@ -1,11 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[3]:
-
-
-import pandas as pd
-
 def merge_dataframes(df_amazon, df_itunes, df_google):
     # Check if any DataFrame is None
     if df_amazon is None and df_itunes is None and df_google is None:
