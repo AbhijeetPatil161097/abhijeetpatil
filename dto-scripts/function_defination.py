@@ -1080,7 +1080,9 @@ def read_data_from_s3_google(bucket_name, prefix):
         for file_path in files:
            try:
                file_key = file_path.split(f'{bucket_name}/')[1]
+               logging.info(f"File {file_key}")
                file_name = os.path.basename(file_key)
+               logging.info(f"File {file_name}")
                logging.info(f"Processing started for file: {file_key}")
                
                # Get file creation date using s3fs
