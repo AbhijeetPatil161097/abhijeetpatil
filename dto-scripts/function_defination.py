@@ -1009,13 +1009,13 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                     file_extension = os.path.splitext(file_key)[1].lower()
                     df = _read_file_from_s3(bucket_name, file_key, file_extension)
                     df = df.dropna(subset = ['Title', 'Vendor Identifier'])
-                    
+                    logging.info(f"Step 1")
                     if df is None:
                         logging.error(f"Itunes file is empty or could not be read: {file_key}")
                         continue
                     df['Start Date'] = pd.to_datetime(df['Start Date'], format = '%m/%d/%Y')
                     df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
-                        
+                    logging.info(f"Step 2")
                     # Raise error if difference between Start Date and End Date is more  than 45 Days.
                     date_diff = (df['End Date'] - df['Start Date']).dt.days
                     if (date_diff > 45).any():
@@ -1023,13 +1023,13 @@ def read_data_from_s3_itunes(bucket_name, prefix):
                             
                     df['Start Date'] = df['Start Date'] + (df['End Date'] - df['Start Date']) / 2
                     df['Start Date'] = df['Start Date'].dt.strftime('%Y-%m')
-                        
+                    logging.info(f"Step 3")
                     # Get unique months from DataFrame. We are using Start Date as Transaction Date.
                     unique_months = ','.join(df['Start Date'].unique())
                     file_info = s3.info(f"{bucket_name}/{file_key}")
                     file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
                     file_row_count = len(df)
-                    
+                    logging.info(f"Step 4")
                     # Append metadata
                     unique_months = ','.join(df['Start Date'].unique())
                     _collect_file_metadata(bucket_name, 
