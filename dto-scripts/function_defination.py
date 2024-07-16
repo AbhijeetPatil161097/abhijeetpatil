@@ -805,7 +805,7 @@ def _extract_date_from_file_key(file_key, partner):
         if partner == 'google':
             return datetime.strptime(re.search(r'(\d{8})', file_key).group(1), '%Y%m%d').strftime('%Y-%m')  
     except:
-        logging.error(f"An error occurred while collecting file date from {file key}: {e}")
+        logging.error(f"An error occurred while collecting file date from: {e}")
         upload_log_file_to_s3(log_file_path, log_file_bucket_name, log_file_key)
         raise RuntimeError("An error occurred while collecting file date from.") from e
         
