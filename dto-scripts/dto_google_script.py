@@ -205,13 +205,7 @@ class DtoDataProcessGoogle:
         try:
             def clean_title(title):
                 return re.sub(r'"|:| {2,}|,|-', '', str(title)).strip()
-            
-            series_title = clean_title(row['Series Title'])
-            season_title = clean_title(row['Season Title'])
-            title = clean_title(row['Title'])
-
-            
-            
+        
             channel_name = clean_title(row['Channel Name'])
             series_title = clean_title(row['Show Title'])
             season_title = clean_title(row['Series Title'])
