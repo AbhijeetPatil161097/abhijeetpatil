@@ -228,7 +228,7 @@ class DtoDataProcessItunes:
         try:
             self.df[new_title_col] = self.df.apply(lambda row: self.new_title(row, title_columns), axis=1)
             self.df[new_partner_col] = self.df.apply(lambda row: self.new_partner_title(row, title_columns), axis=1)
-            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('|', '').strip())
+            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('  ', '').strip())
             self.df.drop(columns=title_columns, inplace=True)
         except KeyError as e:
             raise RuntimeError(f"Error dropping old title columns: {e}")
