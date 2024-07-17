@@ -140,7 +140,7 @@ class DtoDataProcessAmazon:
             'Retail Price Native': 'sum', 
             'Media Format': lambda x: '|'.join(sorted(pd.Series.unique(x))),
             'PARTNER_TITLE': lambda x: '%%'.join(sorted(pd.Series.unique(x))),
-            'Transaction': lambda x: '%%'.join(sorted(pd.Series.unique(x)))
+            'Transaction': lambda x: '|'.join(sorted(pd.Series.unique(x)))
         }
         
 
