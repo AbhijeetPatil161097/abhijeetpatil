@@ -203,10 +203,19 @@ class DtoDataProcessGoogle:
     def new_title(self, row, title_columns):
         '''Create new title by merging and normalizing all title columns'''
         try:
-            channel_name = str(row[title_columns[0]]).replace('"', '').strip()
-            series_title = str(row[title_columns[1]]).replace('"', '').strip()
-            season_title = str(row[title_columns[2]]).replace('"', '').strip()
-            title = str(row[title_columns[3]]).replace('"', '').strip()
+            def clean_title(title):
+                return re.sub(r'"|:| {2,}|,|-', '', str(title)).strip()
+            
+            series_title = clean_title(row['Series Title'])
+            season_title = clean_title(row['Season Title'])
+            title = clean_title(row['Title'])
+
+            
+            
+            channel_name = clean_title(row['Channel Name'])
+            series_title = clean_title(row['Show Title'])
+            season_title = clean_title(row['Series Title'])
+            title = clean_title(row['Name of Title'])
             
             if channel_name in series_title:
                 if series_title in season_title:   
@@ -238,7 +247,7 @@ class DtoDataProcessGoogle:
         try:
             self.df[new_title_col] = self.df.apply(lambda row: self.new_title(row, title_columns), axis=1)
             self.df[new_partner_col] = self.df.apply(lambda row: self.new_partner_title(row, title_columns), axis=1)
-            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('|', '').strip())
+            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('  ', '').strip())
             self.df.drop(columns=title_columns, inplace=True)
         except KeyError as e:
             raise RuntimeError(f"Error dropping old title columns: {e}")
