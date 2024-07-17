@@ -204,13 +204,19 @@ class DtoDataProcessGoogle:
         '''Create new title by merging and normalizing all title columns'''
         try:
             def clean_title(title):
+                if pd.isna(title):
+                    return np.nan
                 return re.sub(r'"|:| {2,}|,|-', '', str(title)).strip()
-        
+
             channel_name = clean_title(row['Channel Name'])
             series_title = clean_title(row['Show Title'])
-            season_title = clean_title(row['Series Title'])
+            season_title = clean_title(row['Season Title'])
             title = clean_title(row['Name of Title'])
-            
+
+            # Ensure all titles are strings or NaN
+            if pd.isna(series_title) or pd.isna(season_title) or pd.isna(channel_name):
+                return title
+
             if channel_name in series_title:
                 if series_title in season_title:   
                     if season_title in title:
@@ -219,14 +225,14 @@ class DtoDataProcessGoogle:
                         return f"{season_title} | {title}"
                 elif season_title in title:
                     return f"{series_title} | {title}"
-                
                 else:
                     return f"{series_title} | {season_title} | {title}"
             else:
                 return f"{channel_name} | {series_title} | {season_title} | {title}"
-            
+
         except KeyError as e:
             raise RuntimeError(f"Error processing title: {e}")
+            
     
     def new_partner_title(self, row, title_columns):
         '''Create partner title using (||) as a seperator.'''
