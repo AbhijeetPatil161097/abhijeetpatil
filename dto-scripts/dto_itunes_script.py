@@ -199,8 +199,11 @@ class DtoDataProcessItunes:
     def new_title(self, row, title_columns):
         '''Create new title by merging and normalizing all title columns'''
         try:
-            series_title = str(row[title_columns[0]]).replace('"', '').strip()
-            title = str(row[title_columns[1]]).replace('"', '').strip()
+            def clean_title(title):
+                return re.sub(r'"|:| {2,}|,|-', '', str(title)).strip()
+            
+            series_title = clean_title(row['Artist/Show/Developer/Author'])
+            title = clean_title(row['Title'])
 
             if series_title in title:
                 series_title_part = series_title[len(series_title):].strip()
