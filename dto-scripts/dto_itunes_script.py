@@ -16,7 +16,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
         
         '''
         We have sales and revenue data in itunes raw data.
-        Sales and Revenue have two different schemas. For  current script, we are not using sales data.
+        Sales and Revenue have two different schemas. For current script, we are not using sales data.
         Below rename mapping to be used if Sales data is required to process.
         
         rename_mapping = {
@@ -55,7 +55,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 # Extract date from file name. ('_extract_date_from_file_key' - Function defined in DTO_Script_2.py)
                 file_name_month = _extract_date_from_file_key(file_key, partner)
                 
-                # Read data  from raw file and create DataFrame. ('_read_file_from_s3' - Function defined in DTO_Script_2.py)
+                # Read data from raw file and create DataFrame. ('_read_file_from_s3' - Function defined in DTO_Script_2.py)
                 df = _read_file_from_s3(bucket_name, file_key, file_extension)
                 df = df.dropna(subset = ['Title', 'Vendor Identifier'])
                 #df = df.rename(columns=rename_mapping)
@@ -66,7 +66,7 @@ def read_data_from_s3_itunes(files_to_process, bucket_name):
                 df['Start Date'] = pd.to_datetime(df['Start Date'], format = '%m/%d/%Y')
                 df['End Date'] = pd.to_datetime(df['End Date'], format = '%m/%d/%Y')
                 
-                # Raise error if difference between Start Date and End Date is more  than 45 Days.
+                # Raise error if difference between Start Date and End Date is more than 45 Days.
                 date_diff = (df['End Date'] - df['Start Date']).dt.days
                 if (date_diff > 45).any():
                     logging.error("Start Date and End Date difference is more than 1 month.")
