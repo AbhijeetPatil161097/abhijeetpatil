@@ -164,9 +164,12 @@ class DtoDataProcessAmazon:
     def new_title(self, row, title_columns):
         '''Create new title by merging and normalizing all title columns'''
         try:
-            series_title = str(row['Series Title']).replace('"', '').strip()
-            season_title = str(row['Season Title']).replace('"', '').strip()
-            title = str(row['Title']).replace('"', '').strip()
+            def clean_title(title):
+                return re.sub(r'"|:| {2,}|,|-', '', str(title)).strip()
+            
+            series_title = clean_title(row['Series Title'])
+            season_title = clean_title(row['Season Title'])
+            title = clean_title(row['Title'])
 
             if series_title in season_title:   
                 if season_title in title:
@@ -193,7 +196,7 @@ class DtoDataProcessAmazon:
         try:
             self.df[new_title_col] = self.df.apply(lambda row: self.new_title(row, title_columns), axis=1)
             self.df[new_partner_col] = self.df.apply(lambda row: self.new_partner_title(row, title_columns), axis=1)
-            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('|', '').strip())
+            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('  ', '').strip())
             self.df.drop(columns=title_columns, inplace=True)
         except KeyError as e:
             raise RuntimeError(f"Error adding new title or dropping old title columns in DataFrame: {e}")
