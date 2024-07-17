@@ -200,14 +200,15 @@ class DtoDataProcessItunes:
         '''Create new title by merging and normalizing all title columns'''
         try:
             def clean_title(title):
+                if pd.isna(title):
+                    return np.nan
                 return re.sub(r'"|:| {2,}|,|-', '', str(title)).strip()
-            
+
             series_title = clean_title(row['Artist/Show/Developer/Author'])
             title = clean_title(row['Title'])
 
-            if series_title in title:
-                series_title_part = series_title[len(series_title):].strip()
-                return f"{series_title_part} | {title}"
+            if pd.isna(series_title) or series_title in title:
+                return title
             else:
                 return f"{series_title} | {title}"
         except KeyError as e:
