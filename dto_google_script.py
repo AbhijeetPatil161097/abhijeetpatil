@@ -1,206 +1,333 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[3]:
-
-
-class DtoDataProcessGoogle:
-    COUNTRY = 'Country'
-    TRANSACTION_DATE = 'Transaction Date'
-    NAME_OF_TITLE = 'Name of Title'
-    SEASON_TITLE = 'Season Title'
-    SHOW_TITLE = 'Show Title'
-    CHANNEL_NAME = 'Channel Name'
-    VIDEO_CATEGORY = 'Video Category'
-    YOUTUBE_VIDEO_ID = 'YouTube Video ID'
-    PLAY_ASSET_ID = 'Play Asset ID'
-    EIDR_TITLE_ID = 'EIDR Title ID'
-    EIDR_EDIT_ID = 'EIDR Edit ID'
-    PARTNER_REPORTING_ID = 'Partner Reporting ID'
-    TRANSACTION_IMPORT_SOURCE = 'Transaction Import Source'
-    TRANSACTION_TYPE = 'Transaction Type'
-    RESOLUTION = 'Resolution'
-    REFUND_CHARGEBACK = 'Refund/Chargeback'
-    COUPON_USED = 'Coupon Used'
-    CAMPAIGN_ID = 'Campaign ID'
-    PURCHASE_LOCATION = 'Purchase Location'
-    RETAIL_PRICE_USD = 'Retail Price'
-    NATIVE_RETAIL_PRICE = 'Native Retail Price'
-    TAX_EXCLUSIVE_RETAIL_PRICE_USD = 'Tax Exclusive Retail Price'
-    NATIVE_TAX_EXCLUSIVE_RETAIL_PRICE = 'Native Tax Exclusive Retail Price'
-    TOTAL_TAX = 'Total Tax'
-    NATIVE_TOTAL_TAX = 'Native Total Tax'
-    PARTNER_EARNINGS_FRACTION = 'Partner Earnings Fraction'
-    CONTRACTUAL_MINIMUM_PARTNER_EARNINGS_USD = 'Contractual Minimum Partner Earnings'
-    NATIVE_CONTRACTUAL_MINIMUM_PARTNER_EARNINGS = 'Native Contractual Minimum Partner Earnings'
-    PARTNER_EARNINGS_USING_TAX_EXCLUSIVE_RETAIL_PRICE_USD = 'Partner Earnings Using Tax Exclusive Retail Price'
-    NATIVE_PARTNER_EARNINGS_USING_TAX_EXCLUSIVE_RETAIL_PRICE = 'Native Partner Earnings Using Tax Exclusive Retail Price'
-    PARTNER_FUNDED_DISCOUNTS_USD = 'Partner Funded Discounts'
-    NATIVE_PARTNER_FUNDED_DISCOUNTS = 'Native Partner Funded Discounts'
-    FINAL_PARTNER_EARNINGS_USD = 'Final Partner Earnings'
-    NATIVE_FINAL_PARTNER_EARNINGS = 'Native Final Partner Earnings'
-    CONVERSION_RATE = 'Conversion Rate'
-    NATIVE_RETAIL_CURRENCY = 'Native Retail Currency'
-    NATIVE_PARTNER_CURRENCY = 'Native Partner Currency'
-    QUANTITY = 'QUANTITY'
+def read_data_from_s3_google(files_to_process, bucket_name):
+    """
+    Function:
+        * Reads Google files from S3 listed in the files_to_process and processes them into a DataFrame.
     
+    Parameters:
+        * files_to_process: DataFrame of metadata of new files to process.
+        * bucket_name: S3 bucket name of raw Google data.
+    
+    Returns:
+        * DataFrame: Combined DataFrame containing data from all Google files.
+    
+    """
+    try:
+        logging.info(f"Processing files for Google")
+        partner = 'google'
+        
+        # Empty list to store Google DataFrames of each file.
+        df_list_google = []
+        
+        # For each country, column names have currency in brackets. eg for (USD), (AUD) 
+        # To concat all country data, removing brackets from column names.
+        pattern = re.compile(r'\s*\(.+')
+        
+        # Filter google files from files_to_process dataframe. ('_filter_partner_files' Function defined in DTO_Script_2.py)
+        google_files_df = _filter_partner_files(files_to_process, partner)
+        if google_files_df.empty:
+            logging.error("No new Google files to process.")
+            return pd.DataFrame()
+        
+        # Iterating each row to get s3 url of file.
+        for index, row in google_files_df.iterrows():
+            s3_url = row['raw_file_path']
+            file_key = s3_url.split(f's3://{input_bucket_name}/')[1]
+            logging.info(f"Processing started for file: {file_key}")
+
+            file_name = os.path.basename(file_key)
+            file_extension = os.path.splitext(file_key)[1]
+            
+            # Extract date from file name. ('_extract_date_from_file_key' - Function defined in DTO_Script_2.py)
+            file_name_month = _extract_date_from_file_key(file_key, partner)
+            
+            # Read data  from raw file and create DataFrame. ('_read_file_from_s3' - Function defined in DTO_Script_2.py)
+            df = _read_file_from_s3(bucket_name, file_key, file_extension)                          
+            if df is None:
+                logging.error(f"Google file is empty: {file_key}")
+                continue
+            
+            # As there are multiple redundant rows above actual header row, removing such rows.
+            country_index = df.index[df['Per Transaction Report'] == 'Country'].tolist()[0]
+            df = df.iloc[country_index:]
+            df.columns = df.iloc[0]
+            df = df[1:]
+            
+            # Convert column headers to strings explicitly
+            df.columns = [re.sub(pattern, '', col) for col in df.columns]
+            df = df.dropna(subset = ['Transaction Date', 'YouTube Video ID'])
+            df['Transaction Date'] = pd.to_datetime(df['Transaction Date'])
+            df['Transaction Date'] = df['Transaction Date'].dt.strftime('%Y-%m')
+            df['QUANTITY'] = 1
+            file_row_count = len(df)
+            
+            # Get unique months from DataFrame.
+            unique_months = ','.join(df['Transaction Date'].unique())
+            file_info = s3.info(f"{bucket_name}/{file_key}")
+            file_creation_date = file_info['LastModified'].strftime('%Y-%m-%d')
+            file_row_count = len(df)
+            
+            # Get metric data for data processing and aggregation validation.
+            metrics= ['QUANTITY (QUANTITY)',
+                      'UNIT_REVENUE_NATIVE (Native Partner Earnings Using Tax Exclusive Retail Price)'
+                     ]
+            raw_file_values = [df['QUANTITY'].astype('int').sum(), 
+                               df['Native Partner Earnings Using Tax Exclusive Retail Price'].astype('float').sum()
+                              ]
+            
+            # Collect metadata of raw files. ('_collect_file_metadata' - Function defined in DTO_Script_2.py)
+            _collect_file_metadata(bucket_name, 
+                                    file_key, 
+                                    file_name, 
+                                    file_creation_date,
+                                    file_name_month,
+                                    partner,
+                                    unique_months,
+                                    file_row_count
+                                    )
+            
+            # Collect metric data of raw files. ('_collect_metric_metadata' - Function defined in DTO_Script_2.py)
+            _collect_metric_metadata(bucket_name,
+                                     file_key, 
+                                     file_name, 
+                                     partner,
+                                     unique_months, metrics= metrics, 
+                                     raw_file_values = raw_file_values
+                                    )
+            
+            # Append DataFrame in list. ('df_list_google' - List defined in DTO_Script_2.py)
+            df_list_google.append(df)
+            logging.info(f"Processing completed for file: {file_key}")
+        
+        # Concat DataFrame
+        df_google = pd.concat(df_list_google, ignore_index=True)
+        raw_metadata = pd.DataFrame(new_raw_metadata)
+        
+        # Remove all files associated with partner and month of non processed files to prevent incomplete data processing.
+        # '_remove_associated_files' - Function defined in DTO_Script_2.py
+        df_google_filtered = _remove_associated_files(df_google, google_files_df, raw_metadata, partner)
+        
+        return df_google_filtered
+                                     
+    except Exception as e:
+        logging.error(f"An error occurred while reading Google data: {e}")
+        return pd.DataFrame()
+    
+    
+class DtoDataProcessGoogle:
     def __init__(self, platform, df):
         self.platform = platform
         self.df = df.copy()
-        self.df['QUANTITY'] = 1
         
-        self.columns_to_drop = [self.EIDR_TITLE_ID, self.EIDR_EDIT_ID, self.TRANSACTION_IMPORT_SOURCE, self.TAX_EXCLUSIVE_RETAIL_PRICE_USD,
-            self.REFUND_CHARGEBACK, self.COUPON_USED, self.CAMPAIGN_ID, self.TOTAL_TAX, self.NATIVE_TAX_EXCLUSIVE_RETAIL_PRICE,
-            self.NATIVE_CONTRACTUAL_MINIMUM_PARTNER_EARNINGS, self.NATIVE_TOTAL_TAX,
-            self.NATIVE_PARTNER_EARNINGS_USING_TAX_EXCLUSIVE_RETAIL_PRICE, self.PARTNER_EARNINGS_FRACTION, 
-            self.NATIVE_PARTNER_FUNDED_DISCOUNTS, self.NATIVE_FINAL_PARTNER_EARNINGS, self.CONTRACTUAL_MINIMUM_PARTNER_EARNINGS_USD,
-            self.CONTRACTUAL_MINIMUM_PARTNER_EARNINGS_USD, self.PARTNER_FUNDED_DISCOUNTS_USD,
-            self.NATIVE_RETAIL_CURRENCY, self.NATIVE_PARTNER_CURRENCY]
-
-
-                                
-        self.title_columns = [self.SHOW_TITLE, self.SEASON_TITLE, self.NAME_OF_TITLE]
-        self.groupby_columns = [self.COUNTRY, 'NEW_TITLE', self.YOUTUBE_VIDEO_ID, self.TRANSACTION_DATE]
-        self.metric_columns = [self.RETAIL_PRICE_USD, self.NATIVE_RETAIL_PRICE, self.QUANTITY, self.CONVERSION_RATE]
-        self.df[self.metric_columns] = self.df[self.metric_columns].apply(pd.to_numeric)
+        '''                            
+        # As the raw data is generated by partner and output should be from the perspective of A+E, we are renaming
+          the mteric columns.
+        Native Partner Earnings Using Tax Exclusive Retail Pricee is what A+E gets from partner so 
+        it becomes Unit Revenue Native for A+E.
         
-    
-    
-    # Drop null rows
-    def drop_null_rows(self):
-        try:
-            self.df = self.df.dropna(subset = [self.TRANSACTION_DATE, self.YOUTUBE_VIDEO_ID, self.CONVERSION_RATE])
-            return self.df
-        except Exception as e:
-            print(f"Error dropping rows: {e}")
-            
-    
-    # Format transaction Dates
-    def format_transaction_dates(self):
-        try:
-            self.df[self.TRANSACTION_DATE] = pd.to_datetime(self.df[self.TRANSACTION_DATE])
-            self.df[self.TRANSACTION_DATE] = self.df[self.TRANSACTION_DATE].dt.strftime('%m-%Y')
-            return self.df
+        '''
+        self.column_rename_map = {
+            'Retail Price' : 'Unit Retail Price USD',
+            'Native Retail Price' : 'Unit Retail Price Native',
+            'Native Partner Earnings Using Tax Exclusive Retail Price' : 'Unit Revenue Native',
+            'Partner Earnings Using Tax Exclusive Retail Price' : 'Unit Revenue USD'
+        }
         
-        except Exception as e:
-            print(f"Error Formatting Transaction Dates: {e}")
-    
-    
-    # Drop redundantt columns
-    def drop_columns(self, columns_to_drop=None):
+        self.df.rename(columns=self.column_rename_map, inplace=True)
+        
+        self.columns_to_drop = [
+            'EIDR Title ID', 'Transaction Import Source', 'Tax Exclusive Retail Price', 
+            'Coupon Used', 'Campaign ID', 'Total Tax', 'Native Tax Exclusive Retail Price',
+            'Native Contractual Minimum Partner Earnings', 'Native Total Tax',
+            'Native Partner Earnings Using Tax Exclusive Retail Price', 'Partner Earnings Fraction', 
+            'Native Partner Funded Discounts', 'Native Final Partner Earnings', 'Contractual Minimum Partner Earnings',
+            'Contractual Minimum Partner Earnings', 'Partner Funded Discounts',
+            'Native Retail Currency', 'Native Partner Currency'
+        ]
+        self.title_columns = ['Channel Name', 'Show Title', 'Season Title', 'Name of Title']
+        self.territory_col = 'Country'
+        self.sku_col = 'YouTube Video ID'
+        self.new_title_col = 'NEW_TITLE'
+        self.new_partner_col = 'PARTNER_TITLE'
+        
+        self.unit_retail_price_native = 'Unit Retail Price Native'
+        self.unit_revenue_native = 'Unit Revenue Native'
+        self.unit_retail_price_usd = 'Unit Retail Price USD'
+        self.unit_revenue_usd = 'Unit Revenue USD'
+        self.quantity_col = 'QUANTITY'
+        self.revenue_usd = 'Revenue USD'
+        self.revenue_native = 'Revenue Native'
+        self.retail_price_native = 'Retail Price Native'
+        self.retail_price_usd = 'Retail Price USD'
+        
+        self.conversion_rate_col = 'Conversion Rate'
+        self.groupby_columns = ['Country', 'NEW_TITLE', 'YouTube Video ID', 'Transaction Date']
+        self.agg_columns = {
+            'Unit Retail Price Native': 'mean',
+            'Unit Retail Price USD' : 'mean',
+            'Unit Revenue Native': 'mean',
+            'Unit Revenue USD' : 'mean',
+            'Retail Price Native' : 'sum',
+            'Retail Price USD' : 'sum',
+            'Revenue Native' : 'sum',
+            'Revenue USD' : 'sum',
+            'QUANTITY': 'sum', 
+            'Conversion Rate': 'mean',
+            'Resolution': lambda x: '|'.join(sorted(map(str, pd.Series.unique(x)))),
+            'Transaction Type': lambda x: '|'.join(sorted(map(str, pd.Series.unique(x)))),
+            'Purchase Location': lambda x: '|'.join(sorted(map(str, pd.Series.unique(x)))),
+            'Video Category': lambda x: '|'.join(sorted(map(str, pd.Series.unique(x)))),
+            'PARTNER_TITLE': lambda x: '%%'.join(pd.Series.unique(x))
+        }
+        
+        self.numeric_columns = [self.unit_retail_price_native, self.unit_revenue_native,
+            self.unit_retail_price_usd, self.unit_revenue_usd,
+            self.quantity_col, self.conversion_rate_col
+        ]
+        
+    def convert_columns_to_float(self, columns):
+        '''Convert numeric columns to float'''
+        for column in columns:
+            if column in self.df.columns:
+                self.df[column] = self.df[column].astype(float)
+        
+        
+    def drop_columns(self, columns_to_drop):
+        '''Drop redundant columns from DataFrame'''
         try:
-            columns_to_drop = columns_to_drop or self.columns_to_drop
             existing_columns = [col for col in columns_to_drop if col in self.df.columns]
             self.df.drop(columns=existing_columns, inplace=True)
-            return self.df
         except Exception as e:
-            print(f"Error dropping columns: {e}")
+            raise RuntimeError(f"Error dropping columns: {e}")
+
     
-    
-    # Create NEW_TITLE using title columns
-    def new_title(self, row):
+    def new_title(self, row, title_columns):
+        '''Create new title by merging and normalizing all title columns'''
         try:
-            series_title = str(row[self.SHOW_TITLE]).replace('"', '').strip() if not pd.isna(row[self.SHOW_TITLE]) else ''
-            season_title = str(row[self.SEASON_TITLE]).replace('"', '').strip() if not pd.isna(row[self.SEASON_TITLE]) else ''
-            title = str(row[self.NAME_OF_TITLE]).replace('"', '').strip() if not pd.isna(row[self.NAME_OF_TITLE]) else ''
-        
-            if series_title in season_title:   
-                if season_title in title:
-                    return f"{title}"
-                else:
-                    return f"{season_title} | {title}"
-                
-            elif season_title in title:
+            channel_name = str(row[title_columns[0]]).replace('"', '').strip()
+            series_title = str(row[title_columns[1]]).replace('"', '').strip()
+            season_title = str(row[title_columns[2]]).replace('"', '').strip()
+            title = str(row[title_columns[3]]).replace('"', '').strip()
+            
+            if channel_name in series_title:
+                if series_title in season_title:   
+                    if season_title in title:
+                        return title
+                    else:
+                        return f"{season_title} | {title}"
+                elif season_title in title:
                     return f"{series_title} | {title}"
                 
+                else:
+                    return f"{series_title} | {season_title} | {title}"
             else:
-                return f"{series_title} | {season_title} | {title}"
+                return f"{channel_name} | {series_title} | {season_title} | {title}"
             
         except KeyError as e:
-            print(f"Error processing title: {e}")     
-            
-            
+            raise RuntimeError(f"Error processing title: {e}")
     
-    # Add NEW_TITLE to df and drop old title
-    def process_new_title_and_drop_columns(self):
+    def new_partner_title(self, row, title_columns):
+        '''Create partner title using (||) as a seperator.'''
         try:
-            self.df['NEW_TITLE'] = self.df.apply(lambda row: self.new_title(row), axis=1)
-            self.df['NEW_TITLE'] = self.df['NEW_TITLE'].fillna('').apply(lambda x: x.replace('|', '').strip())
-            self.df.drop(columns=[self.SHOW_TITLE, self.SEASON_TITLE, self.NAME_OF_TITLE], inplace=True)
+            titles = [str(row[col]).replace('"', '').strip() for col in title_columns]
+            return ' || '.join(titles)
+        except KeyError as e:
+            raise RuntimeError(f"Error processing title: {e}")
+
+    def process_new_title_and_drop_columns(self, title_columns, new_title_col, new_partner_col):
+        '''Add new title and partner title in DataFrame and remove old title columns.'''
+        try:
+            self.df[new_title_col] = self.df.apply(lambda row: self.new_title(row, title_columns), axis=1)
+            self.df[new_partner_col] = self.df.apply(lambda row: self.new_partner_title(row, title_columns), axis=1)
+            self.df[new_title_col] = self.df[new_title_col].fillna('').apply(lambda x: x.replace('|', '').strip())
+            self.df.drop(columns=title_columns, inplace=True)
+        except KeyError as e:
+            raise RuntimeError(f"Error dropping old title columns: {e}")
+
+    def replace_titles(self, territory_col, sku_col, new_title_col):
+        '''By matching YouTube Video ID, replace all non english titles by US titles.'''
+        try:
+            mask = (self.df[territory_col] == 'US') & (self.df[sku_col] != np.nan)
+            filtered_data = self.df[mask]
+
+            grouped_titles = filtered_data.groupby(sku_col)[new_title_col]
+            most_frequent_titles = grouped_titles.apply(lambda x: x.mode()[0] if not x.empty else x.iloc[0]).reset_index(name=new_title_col)
+
+            merged_data = self.df.merge(most_frequent_titles, on=sku_col, how='left', suffixes=('_x', '_y'))
+            merged_data[new_title_col] = merged_data.pop(new_title_col + '_y').combine_first(merged_data.pop(new_title_col + '_x')).str.strip()
+
+            self.df = merged_data
             return self.df
         except KeyError as e:
-            print(f"Error dropping old title columns: {e}")
-
+            raise KeyError(f"Error replacing titles - KeyError: {e}")
     
     
-    # Aggregate rows
-    def aggregate_data(self):
+    def calculate_metric_values(self, quantity_col):
+        '''
+            Calculate Retail Price and Revenue by multiplying with quantity.
+            
+        '''
         try:
-            def unique_join(series):
-                return '|'.join(sorted(map(str, pd.Series.unique(series))))
-            agg_columns = {
-                self.RETAIL_PRICE_USD : 'mean',
-                self.NATIVE_RETAIL_PRICE : 'mean',
-                self.QUANTITY : 'sum',
-                self.CONVERSION_RATE:'mean',
-                self.RESOLUTION : unique_join,
-                self.TRANSACTION_TYPE : unique_join,
-                self.PURCHASE_LOCATION : unique_join,
-                self.VIDEO_CATEGORY : unique_join
-            }
-
-            self.df = self.df.groupby(self.groupby_columns).agg(agg_columns).reset_index()
+            self.df[self.retail_price_usd] = self.df[self.unit_retail_price_usd] * self.df[self.quantity_col]
+            self.df[self.retail_price_native] = self.df[self.unit_retail_price_native] * self.df[self.quantity_col]
+            self.df[self.revenue_native] = self.df[self.unit_revenue_native] * self.df[self.quantity_col].abs()
+            self.df[self.revenue_usd] = self.df[self.unit_revenue_usd] * self.df[self.quantity_col].abs()
+            
         except KeyError as e:
-            print(f"Error aggregating data: {e}")
-            
+            raise KeyError(f"Error calculating metric values: {e}")
     
-    # Calculate revenue
-    def calculate_revenue(self):
+            
+    def aggregate_data(self, groupby_columns, agg_columns):
+        '''Aggregate data on groupby_columns'''
         try:
-            self.df['REVENUE_USD'] = self.df[self.RETAIL_PRICE_USD] * self.df[self.QUANTITY]
-            self.df['REVENUE_NATIVE'] = self.df[self.NATIVE_RETAIL_PRICE] * self.df[self.QUANTITY]
-        except Exception as e:
-            print(f"Error calculation revenue: {e}")
+            self.df = self.df.groupby(groupby_columns).agg(agg_columns).reset_index()
+        except KeyError as e:
+            raise RuntimeError(f"Error aggregating data: {e}")
             
+        
+    def calculate_weigted_mean(self, quantity_col):
+        '''Calculating weighted mean of unit_retail_price and unit_revenue'''
+        try:
+            mask = self.df[self.quantity_col] != 0
+            self.df.loc[mask, self.unit_retail_price_native] = self.df.loc[mask, self.retail_price_native] / self.df.loc[mask, quantity_col]
+            self.df.loc[mask, self.unit_retail_price_usd] = self.df.loc[mask, self.retail_price_usd]  / self.df.loc[mask, quantity_col]
+            self.df.loc[mask, self.unit_revenue_native] = self.df.loc[mask, self.revenue_native] / self.df.loc[mask, quantity_col]
+            self.df.loc[mask, self.unit_revenue_usd] = self.df.loc[mask, self.revenue_usd] / self.df.loc[mask, quantity_col]
+        except Exception as e:
+            raise RuntimeError(f"Error calculating revenue: {e}")
     
-    # Format column names
+    
     def rename_columns(self):
+        '''Rename column name by Capitalizing and replacing empty space by underscore.'''
         try:
-            self.df = self.df.rename(columns=lambda x: x.upper().replace(' ', '_'))
-            return self.df
-        except Exception as e:  
-            print(f"Error adding renaming column names: {e}")
-            return self.df
+            self.df.rename(columns=lambda x: x.upper().replace(' ', '_'), inplace=True)
+        except Exception as e:
+            raise RuntimeError(f"Error renaming columns: {e}")
     
-    
-    # Add GOOGLE as Vendor name
-    def add_vendor_name_column(self, vendor_name='GOOGLE'):
+    def add_columns_to_df(self, vendor_name):
+        '''
+            Add necessary columns in DataFrame.
+            * Adding PARTNER column to distinguish data after merging with other partners.
+            * Adding IS_CONVERSION_RATE = False, as conversion rate is not present in raw data.
+        '''
         try:
-            self.df.insert(0, 'VENDOR_NAME', vendor_name)
+            self.df.insert(0, 'PARTNER', vendor_name)
+            self.df['IS_CONVERSION_RATE'] = True
             return self.df
         except Exception as e:
-            print(f"Error adding vendor name column: {e}")
-            return self.df
-        
-        
-    
-    # Add function to call all         
+            raise RuntimeError(f"Error adding vendor name column: {e}")
+
+            
     def process_data_source(self):
+        '''Calling all function in specific order.'''
         try:
-            self.drop_null_rows()
-            self.drop_columns()
-            self.format_transaction_dates()
-            self.process_new_title_and_drop_columns()
-            self.aggregate_data()
-            self.calculate_revenue()
+            self.convert_columns_to_float(self.numeric_columns)
+            self.drop_columns(self.columns_to_drop)
+            self.process_new_title_and_drop_columns(self.title_columns, self.new_title_col, self.new_partner_col)
+            self.replace_titles(self.territory_col, self.sku_col, self.new_title_col)
+            self.calculate_metric_values(self.quantity_col)
+            self.aggregate_data(self.groupby_columns, self.agg_columns)
+            self.calculate_weigted_mean(self.quantity_col)
             self.rename_columns()
-            return self.add_vendor_name_column()
-        except Exception as e:
-            print(f"Error processing data source: {e}")
-
-
-# In[ ]:
-
-
-
-
+            return self.add_columns_to_df('google')
+        except RuntimeError as e:
+            raise e  
