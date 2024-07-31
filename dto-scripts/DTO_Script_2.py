@@ -198,6 +198,8 @@ def _read_file_from_s3(bucket_name, file_key, file_extension):
             return pd.read_csv(file_path, sep='\t')
         elif file_extension == '.xlsx':
             return pd.read_excel(file_path)
+        elif file_extension == '.txt':
+            return pd.read_csv(file_path, sep='\t')
         elif file_extension == '.gz':
             with s3.open(file_path, 'rb') as f:
                 return pd.read_csv(f, sep='\t', compression='gzip')
